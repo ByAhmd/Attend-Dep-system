@@ -9,12 +9,15 @@ no Docker, no scheduler is required.
 | Requirement | Value |
 |---|---|
 | PHP | **8.3 or newer** (8.4 supported) |
-| PHP extensions | `pdo_mysql`, `mbstring`, `openssl`, `tokenizer`, `xml`, `ctype`, `fileinfo`, `json`, `curl`, `intl`, `bcmath`, `gd`, `zip` |
+| PHP extensions | `pdo_mysql`, `mbstring`, `openssl`, `tokenizer`, `xml`, `dom`, `xmlreader`, `libxml`, `iconv`, `ctype`, `fileinfo`, `intl`, `curl`, `zip`, `bcmath`, `gd` — confirm on the server with `composer check-platform-reqs --no-dev` |
 | Database | MySQL **8.0.19+** (MariaDB 10.6+ also works — the migrations use standard `CHECK` constraints) |
 | Web server | nginx or Apache with the document root at **`public/`** |
 | HTTPS | **Required** — browsers refuse geolocation on plain HTTP |
 | Composer | 2.x on the server, or upload `vendor/` built elsewhere |
-| Node.js | Only to build assets (`npm run build`); not needed at runtime — build locally or in CI and upload `public/build/` |
+| Node.js | 22 LTS (or 20.19+), only to build assets (`npm run build`); not needed at runtime — build locally or in CI and upload `public/build/` |
+
+`composer.lock` is resolved for PHP 8.3 (`config.platform.php` in `composer.json`), so the
+same lock installs on 8.3 and 8.4 hosts alike.
 
 ## 2. Database setup
 

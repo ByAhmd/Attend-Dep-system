@@ -122,7 +122,8 @@ final class TranslationParityTest extends TestCase
             }
         }
 
-        $this->assertStringContainsString('212', AttendanceRejectionReason::OutsideAllowedArea->message($verification));
+        // A quantity refused for being too large is reported rounded up.
+        $this->assertStringContainsString('213', AttendanceRejectionReason::OutsideAllowedArea->message($verification));
         $this->assertStringContainsString('150', AttendanceRejectionReason::OutsideAllowedArea->message($verification));
         $this->assertStringContainsString('650', AttendanceRejectionReason::InsufficientAccuracy->message($verification));
     }

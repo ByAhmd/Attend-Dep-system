@@ -31,7 +31,6 @@ return [
     'actions' => [
         'check_in' => 'Check In',
         'check_out' => 'Check Out',
-        'retry' => 'Try again',
     ],
 
     'feedback' => [
@@ -106,7 +105,6 @@ return [
         'date_range' => 'Date range',
         'from' => 'From',
         'until' => 'Until',
-        'status' => 'Status',
     ],
 
     'admin_actions' => [

@@ -39,14 +39,25 @@ final class AttendanceFactory extends Factory
     }
 
     /**
-     * Move the record to another day, keeping the same clock times.
+     * Move the record to another day, keeping the same clock times. A
+     * check-out already applied moves with it, so the two states compose in
+     * either order and never leave a record closed on a different day than
+     * it was opened.
      */
     public function on(CarbonInterface $date): static
     {
-        return $this->state(fn (array $attributes): array => [
-            'attendance_date' => $date->toDateString(),
-            'check_in_at' => $date->copy()->setTime(8, 2),
-        ]);
+        return $this->state(function (array $attributes) use ($date): array {
+            $state = [
+                'attendance_date' => $date->toDateString(),
+                'check_in_at' => $date->copy()->setTime(8, 2),
+            ];
+
+            if (isset($attributes['check_out_at'])) {
+                $state['check_out_at'] = $date->copy()->setTime(17, 4);
+            }
+
+            return $state;
+        });
     }
 
     public function checkedOut(): static

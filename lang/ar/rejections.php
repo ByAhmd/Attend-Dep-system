@@ -15,7 +15,6 @@ return [
         'reason' => 'السبب',
         'distance' => 'المسافة',
         'accuracy' => 'الدقة',
-        'location' => 'الموقع',
         'recorded_at' => 'وقت التسجيل',
     ],
 

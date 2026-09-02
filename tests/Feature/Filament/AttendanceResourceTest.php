@@ -93,18 +93,25 @@ final class AttendanceResourceTest extends TestCase
     {
         $sara = $this->makeEmployee();
         $today = $this->today();
+        $from = $today->subDays(5);
+        $until = $today->subDay();
 
-        $recent = $this->checkedIn($sara);
+        // Both bounds are inclusive, so the records sitting exactly on
+        // them are in, and the ones a single day beyond them are out.
+        $onFrom = $this->checkedOut($sara, $from);
         $withinRange = $this->checkedOut($sara, $today->subDays(3));
+        $onUntil = $this->checkedOut($sara, $until);
+        $dayBeforeFrom = $this->checkedOut($sara, $from->subDay());
+        $dayAfterUntil = $this->checkedIn($sara);
         $tooOld = $this->checkedOut($sara, $today->subDays(10));
 
         Livewire::test(ListAttendances::class)
             ->filterTable('date_range', [
-                'from' => $today->subDays(5)->toDateString(),
-                'until' => $today->subDay()->toDateString(),
+                'from' => $from->toDateString(),
+                'until' => $until->toDateString(),
             ])
-            ->assertCanSeeTableRecords([$withinRange])
-            ->assertCanNotSeeTableRecords([$recent, $tooOld]);
+            ->assertCanSeeTableRecords([$onFrom, $withinRange, $onUntil])
+            ->assertCanNotSeeTableRecords([$dayBeforeFrom, $dayAfterUntil, $tooOld]);
     }
 
     #[Test]

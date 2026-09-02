@@ -31,7 +31,6 @@ return [
     'actions' => [
         'check_in' => 'تسجيل الحضور',
         'check_out' => 'تسجيل الانصراف',
-        'retry' => 'إعادة المحاولة',
     ],
 
     'feedback' => [
@@ -106,7 +105,6 @@ return [
         'date_range' => 'الفترة',
         'from' => 'من',
         'until' => 'إلى',
-        'status' => 'الحالة',
     ],
 
     'admin_actions' => [

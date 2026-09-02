@@ -39,4 +39,29 @@ final class MetersTest extends TestCase
     {
         $this->assertSame($expected, Meters::format($meters));
     }
+
+    /**
+     * @return array<string, array{float|int|string|null, string}>
+     */
+    public static function roundedUpValues(): array
+    {
+        return [
+            'just past the limit rounds up' => [150.005, '151'],
+            'a third of a metre rounds up' => [150.3, '151'],
+            'below the half still rounds up' => [150.49, '151'],
+            'whole metres stay whole' => [150.0, '150'],
+            'float noise does not overshoot' => [151.00000000000001, '151'],
+            'decimal column string' => ['100.01', '101'],
+            'thousands are grouped' => [2223.9, '2,224'],
+            'null is a dash' => [null, '—'],
+            'empty string is a dash' => ['', '—'],
+        ];
+    }
+
+    #[Test]
+    #[DataProvider('roundedUpValues')]
+    public function a_quantity_reported_as_too_large_is_rounded_up(float|int|string|null $meters, string $expected): void
+    {
+        $this->assertSame($expected, Meters::formatUp($meters));
+    }
 }

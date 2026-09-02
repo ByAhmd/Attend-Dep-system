@@ -32,15 +32,17 @@ enum AttendanceRejectionReason: string
     /**
      * The sentence shown to the employee. Distance, radius and accuracy are
      * substituted when the verification that produced the rejection is known.
+     *
+     * The distance and the accuracy are the quantities being refused for
+     * being too large, so they are rounded up: a reading refused at 150.3 m
+     * reads "151 m", never "150 m" beside "within 150 m".
      */
     public function message(?LocationVerification $verification = null): string
     {
         return __('attendance.rejections.'.$this->value, [
-            'distance' => $verification?->distanceMeters === null
-                ? '—'
-                : Meters::format($verification->distanceMeters),
+            'distance' => Meters::formatUp($verification?->roundedDistance()),
             'radius' => (string) ($verification->allowedRadiusMeters ?? config('attendance.default_radius_meters')),
-            'accuracy' => $verification === null ? '—' : Meters::format($verification->accuracyMeters),
+            'accuracy' => $verification === null ? '—' : Meters::formatUp($verification->accuracyMeters),
             'max_accuracy' => Meters::format($verification->maxAccuracyMeters ?? (float) config('attendance.max_accuracy_meters')),
         ]);
     }

@@ -190,6 +190,23 @@ final class Attendance extends Page
     }
 
     /**
+     * Throttle per account, not per address. The package keys on the
+     * client IP, and a whole office checks in from one public address at
+     * eight o'clock - the eleventh person would have been refused for the
+     * ten before them. Every request here is authenticated, so the account
+     * is the honest unit.
+     *
+     * @param  string|null  $method
+     * @param  string|null  $component
+     */
+    protected function getRateLimitKey($method, $component = null): string
+    {
+        $component ??= self::class;
+
+        return 'livewire-rate-limiter:'.sha1($component.'|'.$method.'|user:'.$this->employee()->id);
+    }
+
+    /**
      * The signed-in account. The auth middleware guarantees one; anything
      * else reaching here is a request that should never have been served.
      */

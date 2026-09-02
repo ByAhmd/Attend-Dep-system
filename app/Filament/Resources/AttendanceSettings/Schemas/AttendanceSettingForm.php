@@ -75,7 +75,7 @@ final class AttendanceSettingForm
                             ->minValue($minRadius)
                             ->maxValue($maxRadius)
                             ->default((int) config('attendance.default_radius_meters'))
-                            ->suffix('m')
+                            ->suffix(__('settings.fields.radius_suffix'))
                             ->validationMessages([
                                 'required' => self::radiusMessage($minRadius, $maxRadius),
                                 'numeric' => self::radiusMessage($minRadius, $maxRadius),
