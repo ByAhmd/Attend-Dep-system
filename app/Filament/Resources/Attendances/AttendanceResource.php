@@ -29,6 +29,9 @@ final class AttendanceResource extends Resource
 
     protected static ?string $slug = 'attendances';
 
+    // Page headings keep the sentence case of the sidebar label.
+    protected static bool $hasTitleCaseModelLabel = false;
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedClipboardDocumentCheck;
 
     protected static ?int $navigationSort = 1;
