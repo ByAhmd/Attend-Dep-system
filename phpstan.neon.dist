@@ -1,0 +1,26 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    # Level 5 is where the codebase stands clean. Raise it deliberately, one
+    # level at a time, fixing what each new level surfaces - never by adding
+    # ignore entries.
+    level: 5
+
+    paths:
+        - app
+        - config
+        - database
+        - routes
+        - tests
+
+    # Larastan resolves model properties, relations and container bindings
+    # by booting the application. Without this every Eloquent magic property
+    # is reported as undefined and buries the real findings.
+    bootstrapFiles:
+        - vendor/autoload.php
+
+    # Model attributes are checked against the database schema. Enum-cast
+    # attributes therefore carry @property annotations on the model, since
+    # the schema only knows they are strings.
+    checkModelProperties: true
