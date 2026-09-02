@@ -49,7 +49,7 @@ app/Models/                 User, Attendance, AttendanceRejection, AttendanceSet
 app/Policies/               one per model
 app/Filament/Resources/     admin resources (Resource + Schemas/ + Tables/ + Pages/)
 app/Filament/Employee/      the employee page and its history widget
-lang/en, lang/ar            every user-facing string (APP_LOCALE=ar switches the whole UI)
+lang/ar, lang/en            every user-facing string; Arabic is the default, APP_LOCALE=en switches to English
 ```
 
 **How a check-in is decided.** The browser sends only latitude, longitude and the
