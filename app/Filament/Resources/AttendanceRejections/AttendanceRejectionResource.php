@@ -24,6 +24,9 @@ final class AttendanceRejectionResource extends Resource
 
     protected static ?string $slug = 'rejected-attempts';
 
+    // Page headings keep the sentence case of the sidebar label.
+    protected static bool $hasTitleCaseModelLabel = false;
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedShieldExclamation;
 
     protected static ?int $navigationSort = 2;

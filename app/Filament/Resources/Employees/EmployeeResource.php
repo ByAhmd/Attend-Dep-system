@@ -33,6 +33,9 @@ final class EmployeeResource extends Resource
 
     protected static ?string $slug = 'employees';
 
+    // Page headings keep the sentence case of the sidebar label.
+    protected static bool $hasTitleCaseModelLabel = false;
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedUsers;
 
     protected static ?int $navigationSort = 1;
