@@ -6,10 +6,10 @@ namespace App\Filament\Resources\AttendanceRejections\Tables;
 
 use App\Enums\AttendanceAction;
 use App\Enums\AttendanceRejectionReason;
-use App\Filament\Resources\Shared\GoogleMapsLink;
 use App\Models\AttendanceRejection;
 use App\Models\User;
 use App\Support\Geo\Coordinates;
+use App\Support\Geo\GoogleMapsLink;
 use App\Support\Geo\Meters;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;

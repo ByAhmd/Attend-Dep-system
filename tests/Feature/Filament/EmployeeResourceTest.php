@@ -103,17 +103,35 @@ final class EmployeeResourceTest extends TestCase
     }
 
     #[Test]
-    public function the_password_must_be_confirmed_and_at_least_eight_characters(): void
+    public function the_password_must_be_at_least_eight_characters(): void
     {
+        // Confirmation matches, so only the length rule can refuse this.
         Livewire::test(CreateEmployee::class)
             ->fillForm([
                 'name' => 'Sara Ali',
                 'email' => 'sara@company.test',
                 'password' => 'short',
-                'password_confirmation' => 'different',
+                'password_confirmation' => 'short',
             ])
             ->call('create')
-            ->assertHasFormErrors(['password']);
+            ->assertHasFormErrors(['password' => 'min']);
+
+        $this->assertNull(User::query()->where('email', 'sara@company.test')->first());
+    }
+
+    #[Test]
+    public function the_password_must_be_confirmed(): void
+    {
+        // Long enough, so only the confirmation rule can refuse this.
+        Livewire::test(CreateEmployee::class)
+            ->fillForm([
+                'name' => 'Sara Ali',
+                'email' => 'sara@company.test',
+                'password' => 'long-enough-1',
+                'password_confirmation' => 'something-else',
+            ])
+            ->call('create')
+            ->assertHasFormErrors(['password' => 'confirmed']);
 
         $this->assertNull(User::query()->where('email', 'sara@company.test')->first());
     }
@@ -235,7 +253,22 @@ final class EmployeeResourceTest extends TestCase
                 'password' => 'new-password-1',
                 'password_confirmation' => 'something-else',
             ])
-            ->assertHasTableActionErrors(['password']);
+            ->assertHasTableActionErrors(['password' => 'confirmed']);
+
+        $this->assertTrue(Hash::check('old-password-1', $employee->fresh()->password));
+    }
+
+    #[Test]
+    public function the_reset_password_action_requires_at_least_eight_characters(): void
+    {
+        $employee = $this->makeEmployee(password: 'old-password-1');
+
+        Livewire::test(ListEmployees::class)
+            ->callTableAction('resetPassword', $employee, data: [
+                'password' => 'short',
+                'password_confirmation' => 'short',
+            ])
+            ->assertHasTableActionErrors(['password' => 'min']);
 
         $this->assertTrue(Hash::check('old-password-1', $employee->fresh()->password));
     }

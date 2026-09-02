@@ -89,13 +89,9 @@ final class PanelAccessTest extends TestCase
     {
         $admin = $this->makeAdmin();
 
-        $response = $this->actingAs($admin)->get('/admin');
+        // The dashboard answers the panel root directly.
+        $this->actingAs($admin)->get('/admin')->assertOk();
 
-        // Entry is a 200, or a redirect that stays inside the panel: with no
-        // landing page registered Filament sends the visitor to the first
-        // navigation item. A bounce to the login page would be a denial.
-        $this->assertContains($response->status(), [200, 302]);
-        $this->assertStringNotContainsString('/login', (string) $response->headers->get('Location'));
         $this->assertAuthenticatedAs($admin);
     }
 
@@ -104,10 +100,9 @@ final class PanelAccessTest extends TestCase
     {
         $employee = $this->makeEmployee();
 
-        $response = $this->actingAs($employee)->get('/');
+        // The attendance screen answers the panel root directly.
+        $this->actingAs($employee)->get('/')->assertOk();
 
-        $this->assertContains($response->status(), [200, 302]);
-        $this->assertStringNotContainsString('/login', (string) $response->headers->get('Location'));
         $this->assertAuthenticatedAs($employee);
     }
 

@@ -18,6 +18,7 @@ return [
         'latitude' => 'خط العرض',
         'longitude' => 'خط الطول',
         'radius_meters' => 'النطاق المسموح (بالأمتار)',
+        'radius_suffix' => 'م',
     ],
 
     'helpers' => [
@@ -31,11 +32,6 @@ return [
         'latitude' => 'يجب أن يكون خط العرض رقمًا بين -90 و90.',
         'longitude' => 'يجب أن يكون خط الطول رقمًا بين -180 و180.',
         'radius' => 'يجب أن يكون النطاق رقمًا صحيحًا بين :min و:max مترًا.',
-    ],
-
-    'status' => [
-        'configured' => 'الموقع مضبوط',
-        'not_configured' => 'الموقع غير مضبوط',
     ],
 
     'notifications' => [

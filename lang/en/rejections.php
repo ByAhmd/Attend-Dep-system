@@ -15,7 +15,6 @@ return [
         'reason' => 'Reason',
         'distance' => 'Distance',
         'accuracy' => 'Accuracy',
-        'location' => 'Location',
         'recorded_at' => 'Recorded at',
     ],
 

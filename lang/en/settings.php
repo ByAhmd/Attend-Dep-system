@@ -18,6 +18,7 @@ return [
         'latitude' => 'Latitude',
         'longitude' => 'Longitude',
         'radius_meters' => 'Allowed radius (meters)',
+        'radius_suffix' => 'm',
     ],
 
     'helpers' => [
@@ -31,11 +32,6 @@ return [
         'latitude' => 'Latitude must be a number between -90 and 90.',
         'longitude' => 'Longitude must be a number between -180 and 180.',
         'radius' => 'The radius must be a whole number between :min and :max meters.',
-    ],
-
-    'status' => [
-        'configured' => 'Location configured',
-        'not_configured' => 'Location not configured',
     ],
 
     'notifications' => [

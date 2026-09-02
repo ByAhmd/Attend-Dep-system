@@ -15,7 +15,8 @@ features are not.
 
 ## 1. Frozen stack
 
-- **PHP ^8.3** (Herd PHP 8.4 locally), **Laravel ^13**, **Filament ^5**, **MySQL 8**
+- **PHP ^8.3** (Herd PHP 8.4 locally; `composer.lock` is resolved with `platform.php`
+  8.3.0 so it installs on 8.3 hosts), **Laravel ^13**, **Filament ^5**, **MySQL 8**
 - Tests: **PHPUnit 12** (not Pest), MySQL-backed (never SQLite)
 - Static analysis: **Larastan level 5**, formatting: **Pint** (default Laravel preset)
 - Frontend: Vite + Tailwind 4 only for the Filament theme; no JS framework
@@ -54,7 +55,8 @@ Layers, exactly as in the ZonKSA/StockFlow projects:
 ```
 app/Enums/                 UserRole, UserStatus, AttendanceStatus, AttendanceAction,
                            AttendanceRejectionReason, NavigationGroup — label() + options()
-app/Support/Geo/           Coordinates, LocationReading (validated value objects), Meters
+app/Support/Geo/           Coordinates, LocationReading (validated value objects), Meters,
+                           GoogleMapsLink (map URL for a stored position)
 app/Support/Filament/      PanelAccess — which panel a user may enter
 app/Data/Attendance/       LocationVerification — the backend verdict on one reading
 app/Services/Geolocation/  DistanceCalculator (haversine), LocationReadingValidator
@@ -64,7 +66,9 @@ app/Exceptions/Attendance/ AttendanceRejectedException (reason enum + verificati
 app/Models/                User, Attendance, AttendanceRejection, AttendanceSetting
 app/Policies/              one per model; employees never write attendance
 app/Http/Middleware/       EnsureAccountIsActive (signs out deactivated accounts)
+app/Console/Commands/      CreateAdminCommand (app:create-admin — the first administrator)
 app/Filament/Resources/    admin resources: <Name>Resource + Schemas/ + Tables/ + Pages/
+                           (+ Actions/ for actions shared by a table and an edit page)
 app/Filament/Pages|Widgets admin dashboard
 app/Filament/Employee/     employee panel page + widgets
 app/Providers/Filament/    AdminPanelProvider, EmployeePanelProvider, Concerns/ConfiguresPanel
@@ -106,8 +110,9 @@ The Filament layer validates input (`LocationReadingValidator`), calls
 - Models: `#[Fillable]`/`#[Hidden]` attributes, `casts()` method, `@property` docblocks
   for enum/decimal casts (PHPStan `checkModelProperties`).
 - Filament resources follow the split: `Resource`, `Schemas/<X>Form`, `Tables/<X>sTable`,
-  `Pages/*`; labels via `getNavigationLabel()` etc. returning `__()` strings; navigation
-  groups via the `NavigationGroup` enum.
+  `Pages/*`, and `Actions/*` when a table and an edit page share an action; labels via
+  `getNavigationLabel()` etc. returning `__()` strings; navigation groups via the
+  `NavigationGroup` enum.
 - Every label, placeholder, helper, validation message, empty state and notification is a
   `__()` key present in **both** `lang/en` and `lang/ar`.
 - Tests: `final class …Test extends Tests\TestCase`, `use RefreshDatabase`, `#[Test]`

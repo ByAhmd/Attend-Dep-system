@@ -2,9 +2,7 @@
 
 declare(strict_types=1);
 
-namespace App\Filament\Resources\Shared;
-
-use App\Support\Geo\Coordinates;
+namespace App\Support\Geo;
 
 /**
  * The map link the admin screens open for a stored position.

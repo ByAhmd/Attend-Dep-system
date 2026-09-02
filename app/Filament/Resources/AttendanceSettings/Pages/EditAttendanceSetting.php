@@ -5,9 +5,9 @@ declare(strict_types=1);
 namespace App\Filament\Resources\AttendanceSettings\Pages;
 
 use App\Filament\Resources\AttendanceSettings\AttendanceSettingResource;
-use App\Filament\Resources\Shared\GoogleMapsLink;
 use App\Models\AttendanceSetting;
 use App\Support\Geo\Coordinates;
+use App\Support\Geo\GoogleMapsLink;
 use Filament\Actions\Action;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Support\Icons\Heroicon;

@@ -4,9 +4,9 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\Attendances\Schemas;
 
-use App\Filament\Resources\Shared\GoogleMapsLink;
 use App\Models\Attendance;
 use App\Support\Geo\Coordinates;
+use App\Support\Geo\GoogleMapsLink;
 use App\Support\Geo\Meters;
 use Closure;
 use Filament\Actions\Action;

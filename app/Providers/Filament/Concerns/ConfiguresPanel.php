@@ -22,7 +22,10 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
  * What both panels share: colours, brand, theme, and the middleware stack.
  *
  * The auth stack signs out a deactivated account before Filament's own
- * guard would answer 403 to it - see EnsureAccountIsActive.
+ * guard would answer 403 to it - see EnsureAccountIsActive. It is marked
+ * persistent so Livewire runs it on component updates too: the Check In
+ * button is a Livewire call, and a deactivated employee pressing it must
+ * be signed out exactly as on a page load, not handed a bare 403.
  */
 trait ConfiguresPanel
 {
@@ -49,6 +52,6 @@ trait ConfiguresPanel
             ->authMiddleware([
                 EnsureAccountIsActive::class,
                 Authenticate::class,
-            ]);
+            ], isPersistent: true);
     }
 }

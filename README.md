@@ -42,7 +42,7 @@ Business logic lives in services, never in the panels:
 
 ```
 app/Enums/                  UserRole, UserStatus, AttendanceStatus, AttendanceAction, AttendanceRejectionReason
-app/Support/Geo/            Coordinates, LocationReading (validated value objects), Meters
+app/Support/Geo/            Coordinates, LocationReading (validated value objects), Meters, GoogleMapsLink
 app/Services/Geolocation/   DistanceCalculator (haversine), LocationReadingValidator
 app/Services/Attendance/    AttendanceCalendar, LocationVerifier, AttendanceWorkflow, AttendanceDashboardMetrics
 app/Models/                 User, Attendance, AttendanceRejection, AttendanceSetting
@@ -69,7 +69,7 @@ never edited or deleted from any interface; accounts are deactivated, never dele
 ## Local setup (Laravel Herd)
 
 Requirements: Laravel Herd (PHP 8.3+), a local MySQL 8 server (Herd Pro services, DBngin
-or any MySQL 8), Composer, Node 20+ and npm, Git.
+or any MySQL 8), Composer, Node 22 LTS (or 20.19+) and npm, Git.
 
 ```bash
 git clone <repository-url> attendance
@@ -204,7 +204,8 @@ The suite covers authentication and panel access, check-in and check-out rules (
 outside, boundary, duplicates, accuracy, inactive accounts, day roll-over), authorization
 policies, configuration defaults, the haversine distance calculation, the admin resources,
 the employee screen, and English/Arabic translation parity. GitHub Actions runs the same
-checks on every push (`.github/workflows/ci.yml`).
+checks on PHP 8.3 and 8.4 for every push to `master` and every pull request
+(`.github/workflows/ci.yml`).
 
 ---
 

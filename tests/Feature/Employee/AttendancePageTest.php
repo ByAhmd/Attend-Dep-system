@@ -262,10 +262,79 @@ final class AttendancePageTest extends TestCase
     {
         $this->signInEmployee();
 
-        Livewire::test(Attendance::class)
+        $component = Livewire::test(Attendance::class);
+
+        $component
             ->assertOk()
             ->assertSee(__('attendance.page.location_not_configured'))
             ->assertDontSee(__('attendance.page.radius_hint', ['radius' => 150]));
+
+        // Both buttons carry the disabled attribute itself, not merely the
+        // Alpine binding or the wire:loading hook that mention the word.
+        $this->assertSame(2, $this->disabledButtonCount($component->html()));
+
+        // A call that bypasses the disabled buttons is refused by the server.
+        $component
+            ->call('checkIn', $this->payload($this->readingAtCompany()))
+            ->assertSet('feedbackStatus', 'danger')
+            ->assertSet('feedbackMessage', __('attendance.rejections.location_not_configured'));
+
+        $this->assertDatabaseCount('attendances', 0);
+    }
+
+    #[Test]
+    public function only_the_check_in_button_is_enabled_before_the_first_check_in(): void
+    {
+        $this->configureCompanyLocation();
+        $this->signInEmployee();
+
+        $component = Livewire::test(Attendance::class);
+
+        $component->assertOk();
+
+        $this->assertSame(1, $this->disabledButtonCount($component->html()));
+    }
+
+    #[Test]
+    public function the_throttle_is_per_account_not_per_address(): void
+    {
+        // Every employee in the office shares one public IP address at
+        // eight o'clock; one colleague's ten attempts must not lock out
+        // the next person in the queue.
+        $this->configureCompanyLocation();
+        $payload = $this->payload($this->readingMetersFromCompany(80.0));
+
+        $first = $this->makeEmployee();
+        $this->actingAs($first);
+        $component = Livewire::test(Attendance::class);
+
+        foreach (range(1, 10) as $attempt) {
+            $component->call('checkIn', $payload);
+        }
+
+        $component
+            ->call('checkIn', $payload)
+            ->assertSet('feedbackMessage', __('attendance.feedback.too_many_attempts'));
+
+        $second = $this->makeEmployee();
+        $this->actingAs($second);
+
+        Livewire::test(Attendance::class)
+            ->call('checkIn', $payload)
+            ->assertSet('feedbackStatus', 'success');
+
+        $this->assertDatabaseHas('attendances', ['user_id' => $second->id]);
+    }
+
+    /**
+     * Buttons rendered with the disabled attribute. The Alpine binding
+     * (x-bind:disabled) and Filament's wire:loading.attr="disabled" also
+     * contain the word, so only a bare attribute preceded by whitespace
+     * counts.
+     */
+    private function disabledButtonCount(string $html): int
+    {
+        return preg_match_all('/<button\b[^>]*\sdisabled(?:\s|>|=)/', $html);
     }
 
     private function signInEmployee(): User
