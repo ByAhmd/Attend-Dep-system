@@ -181,6 +181,10 @@ final class Attendance extends Page
             ->title($message)
             ->success()
             ->send();
+
+        // The history table is its own Livewire component; tell it today
+        // changed so the new row appears without a reload.
+        $this->dispatch('attendance-recorded')->to(AttendanceHistoryWidget::class);
     }
 
     private function feedback(string $message, string $status): void

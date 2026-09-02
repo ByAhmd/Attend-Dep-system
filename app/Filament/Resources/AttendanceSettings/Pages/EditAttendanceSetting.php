@@ -31,6 +31,15 @@ final class EditAttendanceSetting extends EditRecord
         return __('settings.pages.edit.title');
     }
 
+    /**
+     * The resource's index is this page, so the resource crumb Filament
+     * prepends would link to the screen already open and repeat its title.
+     */
+    public function hasResourceBreadcrumbs(): bool
+    {
+        return false;
+    }
+
     public function getSubheading(): string
     {
         return __('settings.pages.edit.subheading');
