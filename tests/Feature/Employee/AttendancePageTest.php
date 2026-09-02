@@ -283,6 +283,30 @@ final class AttendancePageTest extends TestCase
     }
 
     #[Test]
+    public function a_successful_check_in_tells_the_history_widget_to_refresh(): void
+    {
+        $this->configureCompanyLocation();
+        $this->signInEmployee();
+
+        Livewire::test(Attendance::class)
+            ->call('checkIn', $this->payload($this->readingMetersFromCompany(80.0)))
+            ->assertSet('feedbackStatus', 'success')
+            ->assertDispatched('attendance-recorded');
+    }
+
+    #[Test]
+    public function a_refused_check_in_leaves_the_history_widget_alone(): void
+    {
+        $this->configureCompanyLocation();
+        $this->signInEmployee();
+
+        Livewire::test(Attendance::class)
+            ->call('checkIn', $this->payload($this->readingMetersFromCompany(500.0)))
+            ->assertSet('feedbackStatus', 'danger')
+            ->assertNotDispatched('attendance-recorded');
+    }
+
+    #[Test]
     public function only_the_check_in_button_is_enabled_before_the_first_check_in(): void
     {
         $this->configureCompanyLocation();
