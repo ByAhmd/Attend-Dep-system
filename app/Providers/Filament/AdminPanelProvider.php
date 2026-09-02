@@ -5,6 +5,12 @@ declare(strict_types=1);
 namespace App\Providers\Filament;
 
 use App\Enums\NavigationGroup;
+use App\Filament\Pages\Dashboard;
+use App\Filament\Resources\AttendanceRejections\AttendanceRejectionResource;
+use App\Filament\Resources\Attendances\AttendanceResource;
+use App\Filament\Resources\AttendanceSettings\AttendanceSettingResource;
+use App\Filament\Resources\Employees\EmployeeResource;
+use App\Filament\Widgets\AttendanceStatsWidget;
 use App\Providers\Filament\Concerns\ConfiguresPanel;
 use App\Support\Filament\PanelAccess;
 use Filament\Navigation\NavigationGroup as FilamentNavigationGroup;
@@ -30,9 +36,18 @@ final class AdminPanelProvider extends PanelProvider
                 ->path('admin')
                 ->login()
                 ->navigationGroups($this->navigationGroups())
-                ->resources([])
-                ->pages([])
-                ->widgets([]),
+                ->resources([
+                    EmployeeResource::class,
+                    AttendanceResource::class,
+                    AttendanceRejectionResource::class,
+                    AttendanceSettingResource::class,
+                ])
+                ->pages([
+                    Dashboard::class,
+                ])
+                ->widgets([
+                    AttendanceStatsWidget::class,
+                ]),
         );
     }
 
