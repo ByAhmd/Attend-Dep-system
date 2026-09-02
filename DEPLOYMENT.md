@@ -38,7 +38,7 @@ APP_ENV=production
 APP_DEBUG=false
 APP_URL=https://attendance.your-company.example
 APP_KEY=                       # generated below
-APP_LOCALE=en                  # or ar for an Arabic interface
+APP_LOCALE=ar                  # Arabic interface (default); en for English
 APP_TIMEZONE=Asia/Riyadh
 
 LOG_LEVEL=warning

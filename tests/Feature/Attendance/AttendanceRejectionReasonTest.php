@@ -20,6 +20,8 @@ final class AttendanceRejectionReasonTest extends TestCase
     #[Test]
     public function a_distance_just_outside_the_radius_is_never_announced_as_equal_to_it(): void
     {
+        App::setLocale('en');
+
         $verification = new LocationVerification(
             distanceMeters: 150.3,
             allowedRadiusMeters: 150,
@@ -39,6 +41,8 @@ final class AttendanceRejectionReasonTest extends TestCase
     #[Test]
     public function an_accuracy_just_past_the_ceiling_is_rounded_up_in_the_message(): void
     {
+        App::setLocale('en');
+
         $verification = new LocationVerification(
             distanceMeters: 0.0,
             allowedRadiusMeters: 150,

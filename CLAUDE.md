@@ -72,7 +72,8 @@ app/Filament/Resources/    admin resources: <Name>Resource + Schemas/ + Tables/ 
 app/Filament/Pages|Widgets admin dashboard
 app/Filament/Employee/     employee panel page + widgets
 app/Providers/Filament/    AdminPanelProvider, EmployeePanelProvider, Concerns/ConfiguresPanel
-lang/en, lang/ar           every user-facing string; parity is tested
+lang/ar, lang/en           every user-facing string; Arabic is the default locale
+                           (APP_LOCALE=ar), English the fallback; parity is tested
 ```
 
 **Business logic lives in services, never in Filament pages, resources or Blade.**
@@ -114,7 +115,8 @@ The Filament layer validates input (`LocationReadingValidator`), calls
   `getNavigationLabel()` etc. returning `__()` strings; navigation groups via the
   `NavigationGroup` enum.
 - Every label, placeholder, helper, validation message, empty state and notification is a
-  `__()` key present in **both** `lang/en` and `lang/ar`.
+  `__()` key present in **both** `lang/ar` and `lang/en`. The suite runs in Arabic (the
+  shipped default); a test that asserts an English sentence sets `App::setLocale('en')`.
 - Tests: `final class …Test extends Tests\TestCase`, `use RefreshDatabase`, `#[Test]`
   attribute, snake_case method names that read as sentences, fixtures from
   `Tests\Concerns\CreatesAttendanceFixtures` (deterministic Riyadh coordinates; points

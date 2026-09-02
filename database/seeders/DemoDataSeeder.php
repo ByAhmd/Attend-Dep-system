@@ -37,13 +37,13 @@ final class DemoDataSeeder extends Seeder
 
         $this->configureCompanyLocation();
 
-        $this->account('Demo Admin', 'admin@attendance.test', UserRole::Admin);
+        $this->account('مدير النظام', 'admin@attendance.test', UserRole::Admin);
 
         $employees = [
-            $this->account('Sara Al-Harbi', 'sara@attendance.test'),
-            $this->account('Mohammed Al-Qahtani', 'mohammed@attendance.test'),
-            $this->account('Nora Al-Dossari', 'nora@attendance.test'),
-            $this->account('Khalid Al-Otaibi', 'khalid@attendance.test', status: UserStatus::Inactive),
+            $this->account('سارة الحربي', 'sara@attendance.test'),
+            $this->account('محمد القحطاني', 'mohammed@attendance.test'),
+            $this->account('نورة الدوسري', 'nora@attendance.test'),
+            $this->account('خالد العتيبي', 'khalid@attendance.test', status: UserStatus::Inactive),
         ];
 
         $this->seedWeekOfAttendance(array_slice($employees, 0, 3));
