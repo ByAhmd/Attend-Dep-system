@@ -54,10 +54,12 @@ Layers, exactly as in the ZonKSA/StockFlow projects:
 
 ```
 app/Enums/                 UserRole, UserStatus, AttendanceStatus, AttendanceAction,
-                           AttendanceRejectionReason, NavigationGroup — label() + options()
+                           AttendanceRejectionReason, NavigationGroup — label() + options();
+                           Locale (ar/en, nativeLabel(), other(), current())
 app/Support/Geo/           Coordinates, LocationReading (validated value objects), Meters,
                            GoogleMapsLink (map URL for a stored position)
-app/Support/Filament/      PanelAccess — which panel a user may enter
+app/Support/Filament/      PanelAccess — which panel a user may enter;
+                           LanguageMenuItems — the language entry of the user menu
 app/Data/Attendance/       LocationVerification — the backend verdict on one reading
 app/Services/Geolocation/  DistanceCalculator (haversine), LocationReadingValidator
 app/Services/Attendance/   AttendanceCalendar, LocationVerifier, AttendanceWorkflow,
@@ -65,7 +67,9 @@ app/Services/Attendance/   AttendanceCalendar, LocationVerifier, AttendanceWorkf
 app/Exceptions/Attendance/ AttendanceRejectedException (reason enum + verification)
 app/Models/                User, Attendance, AttendanceRejection, AttendanceSetting
 app/Policies/              one per model; employees never write attendance
-app/Http/Middleware/       EnsureAccountIsActive (signs out deactivated accounts)
+app/Http/Middleware/       EnsureAccountIsActive (signs out deactivated accounts),
+                           SetLocale (applies the language cookie; persistent for Livewire)
+app/Http/Controllers/      SwitchLocaleController — GET /locale/{ar|en}, the only web route
 app/Console/Commands/      CreateAdminCommand (app:create-admin — the first administrator)
 app/Filament/Resources/    admin resources: <Name>Resource + Schemas/ + Tables/ + Pages/
                            (+ Actions/ for actions shared by a table and an edit page)

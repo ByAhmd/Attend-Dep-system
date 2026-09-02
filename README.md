@@ -96,7 +96,7 @@ GRANT ALL PRIVILEGES ON attendance_testing.* TO 'attendance'@'localhost';
 php artisan migrate
 npm install
 npm run build
-herd link attendance            # serves http://attendance.test
+herd link attendance && herd secure attendance   # serves https://attendance.test
 ```
 
 Optional demonstration data (never in production — it plants known passwords):
@@ -126,6 +126,9 @@ To try the employee screen from a phone on the same network, expose the HTTPS si
 
 - Employee screen: `https://attendance.test/` (sign in at `/login`)
 - Admin panel: `https://attendance.test/admin`
+- Language: Arabic by default. Both login pages and the user menu of both panels offer
+  the other language (`English` / `العربية`); the choice is kept in a cookie for a year.
+  `APP_LOCALE` only sets the default for visitors who have not chosen.
 
 Filament rate-limits sign-in to five attempts per minute; check-in and check-out calls are
 rate-limited per user as well.
