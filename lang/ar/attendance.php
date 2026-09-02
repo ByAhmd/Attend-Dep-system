@@ -1,0 +1,127 @@
+<?php
+
+declare(strict_types=1);
+
+return [
+    'navigation' => [
+        'label' => 'سجلات الحضور',
+        'model' => 'سجل حضور',
+        'plural_model' => 'سجلات الحضور',
+    ],
+
+    // شاشة الموظف.
+    'page' => [
+        'title' => 'الحضور',
+        'greeting' => 'مرحبًا، :name',
+        'today' => 'اليوم، :date',
+        'current_status' => 'الحالة الحالية',
+        'check_in_time' => 'الحضور',
+        'check_out_time' => 'الانصراف',
+        'not_recorded' => '—',
+        'status' => [
+            'not_checked_in' => 'لم يتم تسجيل الحضور',
+            'checked_in' => 'تم تسجيل الحضور',
+            'checked_out' => 'تم تسجيل الانصراف',
+        ],
+        'radius_hint' => 'يجب أن تكون ضمن :radius مترًا من موقع الشركة لتسجيل الحضور أو الانصراف.',
+        'location_not_configured' => 'لم يتم ضبط موقع الشركة بعد. تواصل مع مسؤول النظام.',
+        'location_hint' => 'سيطلب هاتفك الإذن باستخدام موقعك. تفعيل الموقع الدقيق (GPS) يعطي أفضل نتيجة.',
+    ],
+
+    'actions' => [
+        'check_in' => 'تسجيل الحضور',
+        'check_out' => 'تسجيل الانصراف',
+        'retry' => 'إعادة المحاولة',
+    ],
+
+    'feedback' => [
+        'locating' => 'جارٍ التحقق من موقعك...',
+        'verifying' => 'جارٍ التحقق مع الخادم...',
+        'distance' => 'موقعك يبعد :distance مترًا عن الشركة.',
+        'check_in_success' => 'تم تسجيل الحضور بنجاح.',
+        'check_out_success' => 'تم تسجيل الانصراف بنجاح.',
+        'permission_denied' => 'إذن الوصول إلى الموقع مطلوب لتسجيل الحضور أو الانصراف.',
+        'position_unavailable' => 'تعذّر تحديد موقعك. فعّل GPS/الموقع الدقيق وحاول مرة أخرى.',
+        'timeout' => 'استغرق تحديد موقعك وقتًا طويلًا. انتقل إلى مكان مكشوف وحاول مرة أخرى.',
+        'unsupported' => 'هذا المتصفح لا يدعم خدمات الموقع.',
+        'insecure_context' => 'خدمات الموقع تتطلب اتصالًا آمنًا (HTTPS).',
+        'too_many_attempts' => 'محاولات كثيرة. انتظر قليلًا ثم حاول مرة أخرى.',
+        'failed' => 'حدث خطأ ما. يرجى المحاولة مرة أخرى.',
+    ],
+
+    // جملة واحدة لكل حالة في AttendanceRejectionReason.
+    'rejections' => [
+        'location_not_configured' => 'لم يتم ضبط موقع الشركة بعد. تواصل مع مسؤول النظام.',
+        'inactive_account' => 'حسابك غير نشط. تواصل مع مسؤول النظام.',
+        'already_checked_in' => 'لقد سجّلت حضورك اليوم مسبقًا.',
+        'not_checked_in' => 'لم تسجّل حضورك اليوم، لذا لا يمكنك تسجيل الانصراف.',
+        'already_checked_out' => 'لقد سجّلت انصرافك اليوم مسبقًا.',
+        'insufficient_accuracy' => 'دقة موقعك (±:accuracy م) غير كافية. فعّل الموقع الدقيق/GPS وحاول مرة أخرى.',
+        'outside_allowed_area' => 'أنت خارج نطاق الحضور المسموح. يجب أن تكون ضمن :radius مترًا من الشركة (أنت على بعد :distance مترًا).',
+    ],
+
+    'validation' => [
+        'latitude' => 'يلزم إدخال خط عرض صالح.',
+        'longitude' => 'يلزم إدخال خط طول صالح.',
+        'accuracy' => 'يلزم إدخال دقة موقع صالحة.',
+    ],
+
+    'history' => [
+        'heading' => 'سجل الحضور',
+        'empty_heading' => 'لا يوجد حضور بعد',
+        'empty_description' => 'ستظهر هنا عمليات الحضور والانصراف الخاصة بك.',
+    ],
+
+    'fields' => [
+        'employee' => 'الموظف',
+        'date' => 'التاريخ',
+        'check_in_at' => 'الحضور',
+        'check_out_at' => 'الانصراف',
+        'check_in_distance' => 'مسافة الحضور',
+        'check_out_distance' => 'مسافة الانصراف',
+        'check_in_accuracy' => 'دقة موقع الحضور',
+        'check_out_accuracy' => 'دقة موقع الانصراف',
+        'check_in_location' => 'موقع الحضور',
+        'check_out_location' => 'موقع الانصراف',
+        'status' => 'الحالة',
+    ],
+
+    'sections' => [
+        'check_in' => 'الحضور',
+        'check_out' => 'الانصراف',
+    ],
+
+    'units' => [
+        'meters' => ':value م',
+        'accuracy' => '±:value م',
+    ],
+
+    'placeholders' => [
+        'no_check_out' => 'لم يسجّل الانصراف',
+    ],
+
+    'filters' => [
+        'employee' => 'الموظف',
+        'date' => 'التاريخ',
+        'date_range' => 'الفترة',
+        'from' => 'من',
+        'until' => 'إلى',
+        'status' => 'الحالة',
+    ],
+
+    'admin_actions' => [
+        'view' => 'عرض',
+        'open_map' => 'فتح في الخريطة',
+    ],
+
+    'empty' => [
+        'heading' => 'لا توجد سجلات حضور',
+        'description' => 'ستظهر السجلات بمجرد أن يبدأ الموظفون بتسجيل الحضور.',
+    ],
+
+    'pages' => [
+        'list' => [
+            'subheading' => 'كل عمليات الحضور والانصراف مع الموقع الذي سُجّلت منه.',
+        ],
+    ],
+];

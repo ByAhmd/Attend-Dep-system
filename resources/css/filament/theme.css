@@ -1,0 +1,9 @@
+@import '../../../vendor/filament/filament/resources/css/theme.css';
+
+/*
+ | Tailwind 4 generates only the classes it finds under @source. The employee
+ | attendance screen is a custom Blade view, so its markup must be scanned
+ | here or its utilities are never emitted.
+ */
+@source '../../../app/Filament/**/*';
+@source '../../../resources/views/filament/**/*';

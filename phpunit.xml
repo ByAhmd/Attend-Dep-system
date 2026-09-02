@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="vendor/autoload.php"
+         colors="true"
+>
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit</directory>
+        </testsuite>
+        <testsuite name="Feature">
+            <directory>tests/Feature</directory>
+        </testsuite>
+    </testsuites>
+    <source>
+        <include>
+            <directory>app</directory>
+        </include>
+    </source>
+    <php>
+        <!--
+          artisan test spawns vendor/bin/phpunit as a child process, so a
+          parent-only `php -d memory_limit=1G` does not apply here. Pin the
+          limit in this file so CI and local runs behave the same.
+        -->
+        <ini name="memory_limit" value="1G"/>
+        <env name="APP_KEY" value="base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="/>
+        <env name="APP_ENV" value="testing"/>
+        <env name="APP_LOCALE" value="en"/>
+        <env name="APP_FALLBACK_LOCALE" value="en"/>
+        <env name="APP_TIMEZONE" value="Asia/Riyadh"/>
+        <env name="APP_MAINTENANCE_DRIVER" value="file"/>
+        <env name="BCRYPT_ROUNDS" value="4"/>
+        <env name="BROADCAST_CONNECTION" value="null"/>
+        <env name="CACHE_STORE" value="array"/>
+        <!--
+          Tests run against MySQL, not SQLite.
+
+          Production is MySQL; the CHECK constraints, DATETIME handling and
+          the unique index that stops a duplicate check-in are exactly the
+          behaviour the tests exist to prove, and SQLite would leave them
+          unexercised. The testing database lives on the same local MySQL
+          used with Laravel Herd and is rebuilt by RefreshDatabase.
+
+          A shell environment variable of the same name wins over these
+          values, so `DB_DATABASE=attendance_testing_b vendor/bin/phpunit`
+          runs the suite against a second database.
+        -->
+        <env name="DB_CONNECTION" value="mysql"/>
+        <env name="DB_HOST" value="127.0.0.1"/>
+        <env name="DB_PORT" value="3306"/>
+        <env name="DB_DATABASE" value="attendance_testing"/>
+        <env name="DB_USERNAME" value="attendance"/>
+        <env name="DB_PASSWORD" value="attendance"/>
+        <env name="DB_URL" value=""/>
+        <env name="MAIL_MAILER" value="array"/>
+        <env name="QUEUE_CONNECTION" value="sync"/>
+        <env name="SESSION_DRIVER" value="array"/>
+        <env name="ATTENDANCE_MAX_ACCURACY_METERS" value="100"/>
+        <env name="PULSE_ENABLED" value="false"/>
+        <env name="TELESCOPE_ENABLED" value="false"/>
+        <env name="NIGHTWATCH_ENABLED" value="false"/>
+    </php>
+</phpunit>
