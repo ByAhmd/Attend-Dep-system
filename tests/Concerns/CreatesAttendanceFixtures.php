@@ -11,6 +11,8 @@ use App\Models\User;
 use App\Services\Geolocation\DistanceCalculator;
 use App\Support\Geo\Coordinates;
 use App\Support\Geo\LocationReading;
+use Carbon\Carbon;
+use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Database\Factories\AttendanceFactory;
 
@@ -24,6 +26,13 @@ use Database\Factories\AttendanceFactory;
  */
 trait CreatesAttendanceFixtures
 {
+    /**
+     * The official attendance timezone, spelled out rather than read from
+     * config: a test that freezes "23:59 in Riyadh" must mean Riyadh even if
+     * the configuration under test were ever wrong.
+     */
+    private const string ATTENDANCE_TIMEZONE = 'Asia/Riyadh';
+
     protected function makeAdmin(?string $email = null, string $password = 'secret'): User
     {
         return User::factory()->admin()->create(array_filter([
@@ -81,6 +90,22 @@ trait CreatesAttendanceFixtures
         );
     }
 
+    /**
+     * A point the given number of metres due east of the company, along its
+     * parallel. Over the distances attendance cares about the parallel and
+     * the great circle through the two points agree to well under a
+     * centimetre, so the haversine distance is still the number given.
+     */
+    protected function coordinatesMetersEastOfCompany(float $meters): Coordinates
+    {
+        $parallelRadius = DistanceCalculator::EARTH_RADIUS_METERS * cos(deg2rad(AttendanceFactory::COMPANY_LATITUDE));
+
+        return new Coordinates(
+            AttendanceFactory::COMPANY_LATITUDE,
+            AttendanceFactory::COMPANY_LONGITUDE + rad2deg($meters / $parallelRadius),
+        );
+    }
+
     protected function readingMetersFromCompany(float $meters, float $accuracyMeters = 10.0): LocationReading
     {
         return new LocationReading($this->coordinatesMetersFromCompany($meters), $accuracyMeters);
@@ -89,6 +114,20 @@ trait CreatesAttendanceFixtures
     protected function readingAtCompany(float $accuracyMeters = 10.0): LocationReading
     {
         return new LocationReading($this->companyCoordinates(), $accuracyMeters);
+    }
+
+    /**
+     * Freezes the server clock at a Riyadh wall-clock moment and returns that
+     * instant, so a test can assert a stored timestamp equals exactly what
+     * the server saw. Whole seconds only: DATETIME columns keep no more.
+     */
+    protected function freezeRiyadhClock(string $riyadhDateTime): CarbonImmutable
+    {
+        $now = CarbonImmutable::parse($riyadhDateTime, self::ATTENDANCE_TIMEZONE);
+
+        Carbon::setTestNow($now);
+
+        return $now;
     }
 
     /**

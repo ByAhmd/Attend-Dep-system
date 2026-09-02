@@ -4,10 +4,13 @@ declare(strict_types=1);
 
 namespace App\Providers\Filament;
 
+use App\Filament\Employee\Pages\Attendance;
+use App\Filament\Employee\Widgets\AttendanceHistoryWidget;
 use App\Providers\Filament\Concerns\ConfiguresPanel;
 use App\Support\Filament\PanelAccess;
 use Filament\Panel;
 use Filament\PanelProvider;
+use Filament\Support\Enums\Width;
 
 /**
  * The employee panel at the site root: sign in, then one screen - today's
@@ -31,8 +34,11 @@ final class EmployeePanelProvider extends PanelProvider
                 ->path('')
                 ->login()
                 ->navigation(false)
-                ->pages([])
-                ->widgets([]),
+                // A phone-width card even on a desktop: the screen is two
+                // buttons and a status, and stretching it adds nothing.
+                ->maxContentWidth(Width::Medium)
+                ->pages([Attendance::class])
+                ->widgets([AttendanceHistoryWidget::class]),
         );
     }
 }
