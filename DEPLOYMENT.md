@@ -37,7 +37,7 @@ APP_NAME=Attendance
 APP_ENV=production
 APP_DEBUG=false
 APP_URL=https://attendance.your-company.example
-APP_KEY=                       # generated below
+APP_KEY=                       # left empty; scripts/deploy.sh generates it
 APP_LOCALE=ar                  # Arabic interface (default); en for English
 APP_TIMEZONE=Asia/Riyadh
 
@@ -63,12 +63,16 @@ commit `.env`.
 
 ## 4. Install
 
-From the application root on the server:
+From the application root on the server, once `.env` exists:
 
 ```bash
-php artisan key:generate --force          # first deployment only
 bash scripts/deploy.sh
 ```
+
+That is the whole install. Do **not** run `php artisan key:generate` first: a fresh clone
+has no `vendor/`, so artisan cannot start until Composer has run. The script installs the
+dependencies, then generates `APP_KEY` if and only if it is still empty, and never touches
+an existing key.
 
 `scripts/deploy.sh` does everything in sections 4, 6 and 7 in the right order and is safe
 to re-run on every deployment: production dependencies, migrations, the settings row, and
@@ -188,7 +192,6 @@ is already handled: the compiled theme in `public/build` is committed, and
 
    ```bash
    cd ~/attendance
-   php artisan key:generate --force
    bash scripts/deploy.sh
    php artisan app:create-admin --name="Company Admin" --email=admin@your-company.example
    ```

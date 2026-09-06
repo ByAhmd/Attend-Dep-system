@@ -99,8 +99,40 @@ final class DeploymentConfigurationTest extends TestCase
 
         $this->assertStringContainsString('set -euo pipefail', $script);
         $this->assertStringContainsString('.env', $script);
-        $this->assertStringContainsString('APP_KEY', $script);
         $this->assertStringContainsString('public/build/manifest.json', $script);
+    }
+
+    #[Test]
+    public function the_first_deployment_needs_no_key_of_its_own(): void
+    {
+        $script = (string) file_get_contents(base_path('scripts/deploy.sh'));
+
+        // A fresh clone has no vendor/, so artisan cannot run until Composer
+        // has. Requiring APP_KEY before that made the first deploy impossible:
+        // the key must be generated after the install, and only when absent.
+        $composerAt = strpos($script, 'install --no-dev');
+        $keyAt = strpos($script, 'key:generate --force');
+
+        $this->assertIsInt($composerAt);
+        $this->assertIsInt($keyAt);
+        $this->assertLessThan($keyAt, $composerAt, 'Composer must run before the key is generated.');
+
+        $this->assertMatchesRegularExpression(
+            '/if grep -qE .\^APP_KEY=base64:\.\+. \.env; then/',
+            $script,
+            'An existing key must never be regenerated: that signs every session out.',
+        );
+    }
+
+    #[Test]
+    public function the_deploy_script_never_fails_silently(): void
+    {
+        $script = (string) file_get_contents(base_path('scripts/deploy.sh'));
+
+        // Shared hosting ships display_errors=Off for the CLI, which turns a
+        // fatal error into an empty screen and a returned prompt.
+        $this->assertStringContainsString('display_errors=stderr', $script);
+        $this->assertStringContainsString('vendor/autoload.php', $script);
     }
 
     #[Test]

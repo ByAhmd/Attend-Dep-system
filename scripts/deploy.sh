@@ -28,6 +28,11 @@ COMPOSER_BIN="${COMPOSER_BIN:-composer}"
 read -r -a PHP_CMD <<< "$PHP_BIN"
 read -r -a COMPOSER_CMD <<< "$COMPOSER_BIN"
 
+# Shared hosting usually ships display_errors=Off for the CLI, which turns a
+# fatal error into a silent exit and an empty screen. A deploy must never fail
+# quietly, so errors are forced to stderr for the commands this script runs.
+PHP_CMD+=(-d display_errors=stderr)
+
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 fail() {
@@ -39,9 +44,12 @@ fail() {
 # Preconditions, checked before anything is changed
 # ---------------------------------------------------------------------------
 
-[ -f .env ] || fail "no .env file. Copy .env.example to .env and fill in APP_KEY, APP_URL and the DB_* values."
+[ -f .env ] || fail "no .env file. Copy .env.example to .env and fill in APP_URL and the DB_* values. APP_KEY is generated for you below."
 
-grep -qE '^APP_KEY=base64:.+' .env || fail "APP_KEY is empty in .env. Run: $PHP_BIN artisan key:generate --force"
+# APP_KEY is deliberately NOT required here. Generating it needs artisan,
+# artisan needs vendor/, and vendor/ is installed by this script - so demanding
+# a key up front made the very first deployment impossible. It is generated
+# after Composer runs instead.
 
 # The theme is built by Vite on a developer machine and committed. Without it
 # every page renders unstyled, which is easy to miss until someone complains.
@@ -60,6 +68,22 @@ echo "==> PHP $("${PHP_CMD[@]}" -r 'echo PHP_VERSION;')"
 
 echo "==> Installing PHP dependencies (production only)"
 "${COMPOSER_CMD[@]}" install --no-dev --optimize-autoloader --no-interaction --prefer-dist
+
+[ -f vendor/autoload.php ] || fail "Composer finished but vendor/autoload.php is missing, so nothing else can run. Read the Composer output above."
+
+# ---------------------------------------------------------------------------
+# Application key
+# ---------------------------------------------------------------------------
+
+# Only when it is missing. Regenerating a live key would sign every existing
+# session and cookie out, and make anything encrypted with the old key
+# unreadable, so an existing key is never touched.
+if grep -qE '^APP_KEY=base64:.+' .env; then
+    echo "==> Application key already set"
+else
+    echo "==> Generating the application key (first deployment)"
+    "${PHP_CMD[@]}" artisan key:generate --force
+fi
 
 # Only now can artisan run, so only now is it safe to promise to bring the
 # site back up.
