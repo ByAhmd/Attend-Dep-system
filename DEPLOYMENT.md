@@ -185,6 +185,22 @@ is already handled: the compiled theme in `public/build` is committed, and
 4. **Document root.** hPanel → Websites → your domain → Advanced → change the website root
    to `/home/uXXXXXXXXX/attendance/public`. This is the one step people skip; without it
    the whole source tree is served over the web.
+
+   **On a subdomain**, look at Domains → Subdomains and read the Directory column before
+   changing anything. Hostinger usually shows a fixed path such as
+   `/home/uXXXXXXXXX/domains/main.com/public_html/sub/public` — note that it already ends
+   in `/public`. Rather than fight it, satisfy it: keep the application outside the web
+   root and leave a directory containing a single link where the panel expects one.
+
+   ```bash
+   mkdir -p ~/domains/main.com/public_html/sub
+   ln -s ~/domains/main.com/attendance/public ~/domains/main.com/public_html/sub/public
+   ```
+
+   Only that link is exposed, so `.env`, `vendor` and the source stay unreachable. If the
+   document root does not exist, Hostinger silently serves the parent domain instead, so
+   the symptom is the main website's 404 page rather than an error, which is confusing.
+   Verify with `curl -sI https://sub.main.com/build/manifest.json`, expecting 200.
 5. **Environment.** Copy `.env.example` to `.env` in File Manager and set `APP_ENV=production`,
    `APP_DEBUG=false`, `APP_URL=https://your-domain`, `SESSION_SECURE_COOKIE=true` and the
    `DB_*` values from step 1. Leave `APP_KEY` blank for now.
