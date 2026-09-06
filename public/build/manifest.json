@@ -1,0 +1,11 @@
+{
+  "resources/css/filament/theme.css": {
+    "file": "assets/theme-egyqByLL.css",
+    "name": "theme",
+    "names": [
+      "theme.css"
+    ],
+    "src": "resources/css/filament/theme.css",
+    "isEntry": true
+  }
+}

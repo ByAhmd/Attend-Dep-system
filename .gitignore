@@ -14,7 +14,9 @@
 /.zed
 /auth.json
 /node_modules
-/public/build
+# public/build is COMMITTED on purpose: shared hosting has no Node, and the
+# compiled Filament theme must ship with the code. CI verifies it is current.
+#/public/build
 /public/fonts-manifest.dev.json
 /public/hot
 /public/storage
