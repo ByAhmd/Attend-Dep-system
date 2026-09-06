@@ -90,6 +90,33 @@ php artisan db:seed --force               # creates the settings row (radius 150
 `db:seed` is safe to repeat. Never run `DemoDataSeeder` in production; it refuses to run
 there anyway.
 
+**There is no `.sql` file in this repository, and there should not be.** The schema is
+defined by the seven files in `database/migrations/`, and the two commands above build
+it. A checked-in dump would be a second, silently drifting copy of the same schema.
+
+### If the host cannot run artisan
+
+Some shared-hosting plans offer only phpMyAdmin. Produce an import file from a machine
+that can run the application, against a throwaway database:
+
+```bash
+mysql -u root -e "CREATE DATABASE attendance_export CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+DB_DATABASE=attendance_export php artisan migrate --force
+DB_DATABASE=attendance_export php artisan db:seed --force
+DB_DATABASE=attendance_export php artisan app:create-admin --name="Company Admin" --email=admin@your-company.example
+mysqldump -u root --no-tablespaces --set-gtid-purged=OFF --skip-comments \
+    --default-character-set=utf8mb4 attendance_export > attendance-import.sql
+mysql -u root -e "DROP DATABASE attendance_export"
+```
+
+Import `attendance-import.sql` into the empty database created in the hosting panel, then
+point the server's `.env` at it. The dump carries the `migrations` table, so a later
+`php artisan migrate` correctly reports nothing to do. `utf8mb4_unicode_ci` is used
+deliberately: MariaDB rejects MySQL 8's default `utf8mb4_0900_ai_ci`.
+
+Such a dump contains a password hash for the administrator account it was built with.
+Keep it out of version control, and change that password after the first sign-in.
+
 ## 7. Cache commands
 
 Run after every deployment:
