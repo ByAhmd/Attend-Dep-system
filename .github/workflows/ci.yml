@@ -84,6 +84,16 @@ jobs:
       - name: Build frontend assets
         run: npm run build
 
+      # public/build is committed so the app deploys to hosting without Node.
+      # The Vite build is byte-for-byte reproducible, so any difference here
+      # means someone changed the theme and forgot to commit the result.
+      - name: Committed theme is up to date
+        run: |
+          if ! git diff --exit-code -- public/build; then
+            echo "public/build is stale. Run 'npm run build' and commit the result."
+            exit 1
+          fi
+
       - name: Code style (Pint)
         run: vendor/bin/pint --test
 

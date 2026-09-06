@@ -14,7 +14,7 @@ no Docker, no scheduler is required.
 | Web server | nginx or Apache with the document root at **`public/`** |
 | HTTPS | **Required** — browsers refuse geolocation on plain HTTP |
 | Composer | 2.x on the server, or upload `vendor/` built elsewhere |
-| Node.js | 22 LTS (or 20.19+), only to build assets (`npm run build`); not needed at runtime — build locally or in CI and upload `public/build/` |
+| Node.js | **Not required on the server.** The compiled theme in `public/build` is committed, and CI fails if it is stale. Node is only needed on a developer machine that changes the theme. |
 
 `composer.lock` is resolved for PHP 8.3 (`config.platform.php` in `composer.json`), so the
 same lock installs on 8.3 and 8.4 hosts alike.
@@ -63,12 +63,20 @@ commit `.env`.
 
 ## 4. Install
 
-From the application root on the server (or upload the result of these steps):
+From the application root on the server:
+
+```bash
+php artisan key:generate --force          # first deployment only
+bash scripts/deploy.sh
+```
+
+`scripts/deploy.sh` does everything in sections 4, 6 and 7 in the right order and is safe
+to re-run on every deployment: production dependencies, migrations, the settings row, and
+all caches. It never calls npm, because the theme ships built. The individual commands are
+spelled out below for the rare case where you need to run one on its own.
 
 ```bash
 composer install --no-dev --optimize-autoloader --no-interaction
-php artisan key:generate --force          # first deployment only
-npm ci && npm run build                   # or upload public/build/ from your machine
 ```
 
 ## 5. Storage and permissions
@@ -93,29 +101,6 @@ there anyway.
 **There is no `.sql` file in this repository, and there should not be.** The schema is
 defined by the seven files in `database/migrations/`, and the two commands above build
 it. A checked-in dump would be a second, silently drifting copy of the same schema.
-
-### If the host cannot run artisan
-
-Some shared-hosting plans offer only phpMyAdmin. Produce an import file from a machine
-that can run the application, against a throwaway database:
-
-```bash
-mysql -u root -e "CREATE DATABASE attendance_export CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
-DB_DATABASE=attendance_export php artisan migrate --force
-DB_DATABASE=attendance_export php artisan db:seed --force
-DB_DATABASE=attendance_export php artisan app:create-admin --name="Company Admin" --email=admin@your-company.example
-mysqldump -u root --no-tablespaces --set-gtid-purged=OFF --skip-comments \
-    --default-character-set=utf8mb4 attendance_export > attendance-import.sql
-mysql -u root -e "DROP DATABASE attendance_export"
-```
-
-Import `attendance-import.sql` into the empty database created in the hosting panel, then
-point the server's `.env` at it. The dump carries the `migrations` table, so a later
-`php artisan migrate` correctly reports nothing to do. `utf8mb4_unicode_ci` is used
-deliberately: MariaDB rejects MySQL 8's default `utf8mb4_0900_ai_ci`.
-
-Such a dump contains a password hash for the administrator account it was built with.
-Keep it out of version control, and change that password after the first sign-in.
 
 ## 7. Cache commands
 
@@ -169,13 +154,68 @@ server {
 }
 ```
 
-On Apache shared hosting, point the domain at `public/`; the shipped `public/.htaccess`
-handles the rewrite. If the host cannot change the document root, ask them to — do not
-copy `index.php` to the parent directory.
+On Apache or LiteSpeed shared hosting, point the domain at `public/`; the shipped
+`public/.htaccess` handles the rewrite. If the host cannot change the document root, ask
+them to — do not copy `index.php` to the parent directory.
 
 With `APP_ENV=production` the application generates https URLs itself. If the server sits
 behind a proxy or load balancer, configure the trusted proxy in `bootstrap/app.php`
 (`$middleware->trustProxies(at: '*')`) so HTTPS is detected correctly.
+
+## 8a. Hostinger, step by step
+
+Hostinger shared hosting runs PHP and MariaDB and has Composer, but **no Node.js**. That
+is already handled: the compiled theme in `public/build` is committed, and
+`scripts/deploy.sh` never calls npm. Nothing has to be imported by hand, and there is no
+`.sql` file to upload.
+
+1. **Database.** hPanel → Databases → Management. Create a database and a user, and note
+   that Hostinger prefixes both (`u123456789_attendance`). Leave the database empty.
+2. **PHP version.** hPanel → Advanced → PHP Configuration. Choose **8.3** or newer, and on
+   the extensions tab make sure `pdo_mysql`, `mbstring`, `intl`, `dom`, `xmlreader`,
+   `iconv`, `curl`, `zip` and `fileinfo` are ticked.
+3. **Get the code onto the server.** Either hPanel → Advanced → GIT (repository
+   `https://github.com/ByAhmd/Attend-Dep-system.git`, branch `master`), or upload a ZIP of
+   the repository through File Manager. Put it **outside** `public_html`, for example
+   `/home/uXXXXXXXXX/attendance`.
+4. **Document root.** hPanel → Websites → your domain → Advanced → change the website root
+   to `/home/uXXXXXXXXX/attendance/public`. This is the one step people skip; without it
+   the whole source tree is served over the web.
+5. **Environment.** Copy `.env.example` to `.env` in File Manager and set `APP_ENV=production`,
+   `APP_DEBUG=false`, `APP_URL=https://your-domain`, `SESSION_SECURE_COOKIE=true` and the
+   `DB_*` values from step 1. Leave `APP_KEY` blank for now.
+6. **Deploy.** hPanel → Advanced → SSH Access, then:
+
+   ```bash
+   cd ~/attendance
+   php artisan key:generate --force
+   bash scripts/deploy.sh
+   php artisan app:create-admin --name="Company Admin" --email=admin@your-company.example
+   ```
+
+   `scripts/deploy.sh` installs the production dependencies, migrates, seeds the settings
+   row and rebuilds every cache. It is safe to run again on each future deployment.
+7. **SSL.** hPanel → Security → SSL. Install the free certificate and force HTTPS.
+   Browsers refuse to share location over plain HTTP, so check-in cannot work without it.
+8. **Configure the company location** in the admin panel (section 10 below).
+
+### If your plan has no SSH
+
+Every command above is an artisan command, and hPanel can run those without SSH:
+Advanced → Cron Jobs → create a cron job, set it to run once (or every 5 minutes and
+delete it afterwards), with the command:
+
+```
+/usr/bin/php /home/uXXXXXXXXX/attendance/artisan migrate --force
+```
+
+Run `key:generate --force`, then `migrate --force`, then `db:seed --force`, then
+`app:create-admin --name="Admin" --email=you@example.com --password="a-strong-password"`
+the same way, one at a time. `vendor/` is the only piece Composer would normally install,
+so on a plan without SSH upload your local `vendor/` folder with File Manager as well.
+
+Do **not** build a database dump for this. The migrations are the schema; a dump is a
+second copy of it that silently goes stale.
 
 ## 9. Initial administrator
 
