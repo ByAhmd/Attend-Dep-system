@@ -26,6 +26,13 @@
         <ini name="memory_limit" value="1G"/>
         <env name="APP_KEY" value="base64:AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="/>
         <env name="APP_ENV" value="testing"/>
+        <!--
+          Pinned so the suite behaves the same on a developer machine, which
+          has a .env, and in CI, which has none. Without it the generated
+          absolute URLs differ between the two and tests pass in one place
+          and fail in the other.
+        -->
+        <env name="APP_URL" value="https://attendance.test"/>
         <env name="APP_LOCALE" value="ar"/>
         <env name="APP_FALLBACK_LOCALE" value="en"/>
         <env name="APP_TIMEZONE" value="Asia/Riyadh"/>

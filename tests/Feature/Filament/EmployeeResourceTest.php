@@ -244,7 +244,10 @@ final class EmployeeResourceTest extends TestCase
             ->get('mountedActions.0.data.invitation_link');
 
         $this->assertIsString($link);
-        $this->assertStringStartsWith('https://', $link);
+        // Absolute so it survives being pasted into a message. The scheme
+        // belongs to the deployment, so only the host is required here.
+        $this->assertNotFalse(filter_var($link, FILTER_VALIDATE_URL), "Not an absolute URL: {$link}");
+        $this->assertNotEmpty(parse_url($link, PHP_URL_HOST), "No host in: {$link}");
         $this->assertStringContainsString('/password-reset/reset', $link);
         $this->assertStringContainsString(urlencode($pending->email), $link);
     }

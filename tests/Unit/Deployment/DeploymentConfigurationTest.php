@@ -145,6 +145,23 @@ final class DeploymentConfigurationTest extends TestCase
     }
 
     #[Test]
+    public function the_suite_does_not_depend_on_a_developers_env_file(): void
+    {
+        $phpunit = (string) file_get_contents(base_path('phpunit.xml'));
+
+        // CI has no .env. Anything environment-sensitive that the tests read
+        // must be pinned here, or a test passes on a laptop and fails on a
+        // build server for reasons that have nothing to do with the change.
+        foreach (['APP_KEY', 'APP_URL', 'APP_ENV', 'APP_LOCALE', 'APP_TIMEZONE', 'MAIL_MAILER', 'DB_CONNECTION', 'DB_DATABASE'] as $key) {
+            $this->assertMatchesRegularExpression(
+                '/<env name="'.$key.'" value=/',
+                $phpunit,
+                "phpunit.xml must pin {$key}, otherwise the suite behaves differently in CI.",
+            );
+        }
+    }
+
+    #[Test]
     public function production_is_only_deployed_after_the_whole_suite_passes(): void
     {
         $workflow = (string) file_get_contents(base_path('.github/workflows/ci.yml'));
