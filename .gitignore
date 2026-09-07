@@ -30,3 +30,10 @@ Thumbs.db
 
 # Database dumps produced for a host without SSH — they carry credentials.
 *.sql
+
+# SSH keys must never be committed, least of all to a public repository.
+deploy_key
+deploy_key.pub
+id_ed25519
+id_ed25519.pub
+*.pem
