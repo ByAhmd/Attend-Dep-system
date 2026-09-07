@@ -46,7 +46,12 @@ final class EmployeeInvitationServiceTest extends TestCase
 
         $url = $this->service->issueLink($employee);
 
-        $this->assertStringStartsWith('https://', $url);
+        // Absolute, because the employee opens it from a message rather than
+        // from a page on the site. The scheme is the deployment's business,
+        // not this service's, so it is not asserted: what matters is that a
+        // host is present and the address can be opened on its own.
+        $this->assertNotFalse(filter_var($url, FILTER_VALIDATE_URL), "Not an absolute URL: {$url}");
+        $this->assertNotEmpty(parse_url($url, PHP_URL_HOST), "No host in: {$url}");
         $this->assertStringContainsString('/password-reset/reset', $url);
         $this->assertNotSame('', $this->tokenFrom($url));
         $this->assertSame($employee->email, $this->queryFrom($url, 'email'));
