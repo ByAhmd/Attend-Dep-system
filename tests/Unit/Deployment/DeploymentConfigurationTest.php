@@ -145,6 +145,40 @@ final class DeploymentConfigurationTest extends TestCase
     }
 
     #[Test]
+    public function production_is_only_deployed_after_the_whole_suite_passes(): void
+    {
+        $workflow = (string) file_get_contents(base_path('.github/workflows/ci.yml'));
+
+        // The deploy job must depend on the test job and must never run for a
+        // pull request or a branch that is not master.
+        $this->assertStringContainsString('needs: validate', $workflow);
+        $this->assertStringContainsString("github.ref == 'refs/heads/master'", $workflow);
+        $this->assertStringContainsString("github.event_name == 'push'", $workflow);
+
+        // Off until the repository is deliberately configured for it.
+        $this->assertStringContainsString("vars.DEPLOY_ENABLED == 'true'", $workflow);
+
+        // It deploys by running the same script a human would.
+        $this->assertStringContainsString('bash scripts/deploy.sh', $workflow);
+    }
+
+    #[Test]
+    public function a_deployment_is_never_cancelled_half_way(): void
+    {
+        $workflow = (string) file_get_contents(base_path('.github/workflows/ci.yml'));
+
+        // Cancelling a run on master could interrupt a migration, so only
+        // pull-request runs are superseded.
+        $this->assertStringContainsString(
+            "cancel-in-progress: \${{ github.ref != 'refs/heads/master' }}",
+            $workflow,
+        );
+
+        $this->assertStringContainsString('group: production-deploy', $workflow);
+        $this->assertStringContainsString('cancel-in-progress: false', $workflow);
+    }
+
+    #[Test]
     public function no_database_dump_is_carried_in_the_repository(): void
     {
         // The migrations are the schema. A dump would be a second copy of it

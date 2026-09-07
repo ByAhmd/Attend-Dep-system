@@ -8,7 +8,10 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Superseded pull-request runs are cancelled for fast feedback, but a run on
+  # master is never cancelled: it may be deploying, and interrupting a
+  # migration half-way is far worse than waiting for it.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 jobs:
   validate:
@@ -113,3 +116,59 @@ jobs:
 
       - name: Run tests
         run: vendor/bin/phpunit
+
+  # ---------------------------------------------------------------------------
+  # Deploy to the live site.
+  #
+  # Only after BOTH PHP versions have passed lint, static analysis and the whole
+  # test suite, and only for a push to master. It stays skipped until the
+  # repository variable DEPLOY_ENABLED is set to "true", so a fork or a
+  # half-configured repository never tries to reach a server.
+  #
+  # Configure once, in Settings:
+  #   Variables : DEPLOY_ENABLED = true, and optionally HEALTH_URL
+  #   Secrets   : SSH_HOST, SSH_USER, SSH_PORT, SSH_PRIVATE_KEY, DEPLOY_PATH
+  # ---------------------------------------------------------------------------
+  deploy:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    needs: validate
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push' && vars.DEPLOY_ENABLED == 'true'
+
+    # Never let two deployments overlap, and never cancel one half-way: an
+    # interrupted migration is far worse than a queued deployment.
+    concurrency:
+      group: production-deploy
+      cancel-in-progress: false
+
+    steps:
+      - name: Update the server and run the deploy script
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          port: ${{ secrets.SSH_PORT }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script_stop: true
+          command_timeout: 20m
+          script: |
+            set -euo pipefail
+            cd "${{ secrets.DEPLOY_PATH }}"
+            git fetch origin master
+            # The server tracks master exactly. .env, vendor/ and storage/ are
+            # ignored by git, so nothing configured on the server is touched.
+            git reset --hard origin/master
+            bash scripts/deploy.sh
+
+      - name: Check the site answers
+        if: vars.HEALTH_URL != ''
+        run: |
+          for i in $(seq 1 10); do
+            if curl -fsS --max-time 15 "${{ vars.HEALTH_URL }}" > /dev/null; then
+              echo "The site is up."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Deployed, but ${{ vars.HEALTH_URL }} did not answer. Check the server."
+          exit 1
