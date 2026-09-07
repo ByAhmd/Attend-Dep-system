@@ -35,6 +35,22 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Presence ping interval
+    |--------------------------------------------------------------------------
+    |
+    | Seconds between the position readings the attendance page takes while a
+    | session is open. Five minutes is often enough to show that someone who
+    | checked in is still on site, and rare enough that the GPS radio is idle
+    | almost all of the time. Pings are supporting evidence only: the page can
+    | report a position solely while it is open and the phone is awake, so the
+    | gaps between them mean nothing on their own.
+    |
+    */
+
+    'ping_interval_seconds' => (int) env('ATTENDANCE_PING_INTERVAL_SECONDS', 300),
+
+    /*
+    |--------------------------------------------------------------------------
     | Radius bounds
     |--------------------------------------------------------------------------
     |

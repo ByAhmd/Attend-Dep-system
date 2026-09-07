@@ -7,17 +7,27 @@ namespace App\Filament\Resources\Attendances\Tables;
 use App\Enums\AttendanceStatus;
 use App\Models\Attendance;
 use App\Models\User;
+use App\Support\Attendance\SessionDuration;
 use App\Support\Geo\Meters;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
+use Filament\Tables\Columns\Summarizers\Summarizer;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Grouping\Group;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Query\Builder as QueryBuilder;
+use Illuminate\Support\Facades\DB;
 
 /**
- * Every check-in and check-out, newest day first.
+ * Every session, newest first.
+ *
+ * One row is one check-in and the check-out that closed it, so an employee
+ * who left at noon and came back appears twice on that day. Grouping by
+ * date turns the list into days at a glance, and the duration column
+ * totals the time inside for whatever the filters have selected.
  *
  * Distances are shown in whole metres because that is the unit the rule is
  * written in; the centimetres stay in the database for the audit.
@@ -57,6 +67,22 @@ final class AttendancesTable
                     ->formatStateUsing(fn (string $state): string => self::meters($state))
                     ->placeholder('—'),
 
+                // How long the session lasted, computed from the two stored
+                // moments rather than kept in a column that could disagree
+                // with them. The summary adds up the same subtraction in
+                // SQL, so a day (or a filtered range, or one group) reports
+                // the time actually spent inside.
+                TextColumn::make('duration')
+                    ->label(__('attendance.fields.duration'))
+                    ->state(fn (Attendance $record): string => SessionDuration::format($record->durationInSeconds()))
+                    ->summarize(
+                        Summarizer::make('total_inside')
+                            ->label(__('attendance.summaries.total_inside'))
+                            ->using(fn (QueryBuilder $query): string => SessionDuration::format(
+                                (int) $query->sum(DB::raw('TIMESTAMPDIFF(SECOND, check_in_at, check_out_at)')),
+                            )),
+                    ),
+
                 // Derived on the model, never stored: an open record is a
                 // live session today and a missing check-out on any earlier day.
                 TextColumn::make('status')
@@ -68,7 +94,17 @@ final class AttendancesTable
             ])
             ->defaultSort(fn (Builder $query): Builder => $query
                 ->orderByDesc('attendance_date')
-                ->orderByDesc('check_in_at'))
+                ->orderByDesc('check_in_at')
+                ->orderByDesc('id'))
+            // Offered, not imposed: the flat list stays the default, and an
+            // administrator who wants a day at a glance groups by date and
+            // reads each day's sessions together with their total.
+            ->groups([
+                Group::make('attendance_date')
+                    ->label(__('attendance.groups.date'))
+                    ->date()
+                    ->collapsible(),
+            ])
             ->filters([
                 SelectFilter::make('user_id')
                     ->label(__('attendance.filters.employee'))

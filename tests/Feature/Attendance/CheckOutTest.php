@@ -25,6 +25,11 @@ use Tests\TestCase;
 /**
  * Check-out through AttendanceWorkflow.
  *
+ * A check-out closes the session that is open TODAY - there is at most one -
+ * and nothing else: a session already closed this morning stays as it was,
+ * and one left open yesterday stays open, because inventing a check-out for
+ * a day that has ended is inventing attendance.
+ *
  * The clock is frozen in the Riyadh afternoon, after the fixture's 08:02
  * check-in, so a check-out always lands later than the check-in it closes.
  */
@@ -184,6 +189,38 @@ final class CheckOutTest extends TestCase
         $this->assertTrue($stored->isOpen());
         $this->assertSame($yesterday->toDateString(), $stored->attendance_date->toDateString());
         $this->assertSame(AttendanceStatus::MissingCheckOut, $stored->status());
+    }
+
+    #[Test]
+    public function the_check_out_closes_the_open_session_and_leaves_the_earlier_ones_closed(): void
+    {
+        $morning = $this->attendanceSession($this->employee, '08:00', '12:30');
+        $afternoon = $this->attendanceSession($this->employee, '13:05');
+        $now = $this->freezeRiyadhClock('2026-09-02 17:20:00');
+
+        $closed = $this->workflow->checkOut($this->employee, $this->readingAtCompany());
+
+        $this->assertSame($afternoon->id, $closed->id);
+        $this->assertSame($now->toDateTimeString(), $closed->check_out_at?->toDateTimeString());
+        $this->assertSame('2026-09-02 12:30:00', $morning->fresh()?->check_out_at?->toDateTimeString());
+        $this->assertDatabaseCount('attendances', 2);
+    }
+
+    #[Test]
+    public function a_check_out_with_no_open_session_today_is_refused(): void
+    {
+        // Two completed sessions and nothing running: there is nothing left
+        // to close until the employee checks in again.
+        $this->attendanceSession($this->employee, '08:00', '12:30');
+        $this->attendanceSession($this->employee, '13:05', '17:00');
+
+        $rejection = $this->expectRejection(
+            fn (): Attendance => $this->workflow->checkOut($this->employee, $this->readingAtCompany()),
+        );
+
+        $this->assertSame(AttendanceRejectionReason::AlreadyCheckedOut, $rejection->reason);
+        $this->assertSame(0, Attendance::query()->open()->count());
+        $this->assertDatabaseCount('attendance_rejections', 0);
     }
 
     #[Test]

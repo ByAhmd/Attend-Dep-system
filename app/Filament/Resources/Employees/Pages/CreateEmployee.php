@@ -4,10 +4,56 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\Employees\Pages;
 
+use App\Enums\UserStatus;
+use App\Filament\Resources\Employees\Actions\InviteEmployeeAction;
 use App\Filament\Resources\Employees\EmployeeResource;
+use App\Models\User;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 
+/**
+ * Creating an employee no longer means choosing a password for them.
+ *
+ * The account is stored pending and without one, and the invitation is
+ * issued immediately: the employee sets their own password, and until they
+ * do the account cannot sign in or record attendance.
+ */
 final class CreateEmployee extends CreateRecord
 {
     protected static string $resource = EmployeeResource::class;
+
+    /**
+     * Neither key is on the form, so neither can arrive from the browser -
+     * they are stated here because this is what "create an employee" means,
+     * not because something might have tampered with them.
+     *
+     * @param  array<string, mixed>  $data
+     * @return array<string, mixed>
+     */
+    protected function mutateFormDataBeforeCreate(array $data): array
+    {
+        $data['status'] = UserStatus::Pending;
+        $data['password'] = null;
+
+        return $data;
+    }
+
+    protected function afterCreate(): void
+    {
+        $record = $this->getRecord();
+
+        if ($record instanceof User) {
+            InviteEmployeeAction::invite($record);
+        }
+    }
+
+    /**
+     * The invitation notification is the news: whether the email left, and
+     * what to do when it did not. A second "Created" toast on top of it
+     * would only bury the part that needs reading.
+     */
+    protected function getCreatedNotification(): ?Notification
+    {
+        return null;
+    }
 }

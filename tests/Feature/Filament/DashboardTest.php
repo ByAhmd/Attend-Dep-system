@@ -26,6 +26,10 @@ use Tests\TestCase;
  * The fixture is chosen so every figure differs from its neighbours:
  * three employees (one inactive), two records today (one still open),
  * and a record from yesterday that must count nowhere.
+ *
+ * Since a day may hold several sessions per person, the three attendance
+ * figures count PEOPLE. A person who went out for lunch and came back is
+ * one person checked in, not three.
  */
 final class DashboardTest extends TestCase
 {
@@ -109,6 +113,58 @@ final class DashboardTest extends TestCase
     public function an_empty_system_reports_zero_everywhere(): void
     {
         $this->assertSame(['0', '0', '0', '0', '0'], array_values($this->statsByLabel()));
+    }
+
+    #[Test]
+    public function the_attendance_figures_count_people_and_not_sessions(): void
+    {
+        // One person, three sessions, currently inside. Counting rows would
+        // report three people checked in today and two who have left.
+        $sara = $this->makeEmployee('sara@company.test');
+
+        $this->attendanceSession($sara, '08:00', '12:00');
+        $this->attendanceSession($sara, '13:00', '17:00');
+        $this->attendanceSession($sara, '18:00');
+
+        $this->assertSame([
+            __('dashboard.stats.employees_total') => '1',
+            __('dashboard.stats.employees_active') => '1',
+            __('dashboard.stats.checked_in_today') => '1',
+            __('dashboard.stats.checked_out_today') => '1',
+            __('dashboard.stats.currently_checked_in') => '1',
+        ], $this->statsByLabel());
+    }
+
+    #[Test]
+    public function someone_who_left_for_good_is_not_counted_as_present(): void
+    {
+        $sara = $this->makeEmployee('sara@company.test');
+        $omar = $this->makeEmployee('omar@company.test');
+
+        // Sara went out for lunch and came back; Omar has gone home.
+        $this->attendanceSession($sara, '08:00', '12:00');
+        $this->attendanceSession($sara, '13:00');
+        $this->attendanceSession($omar, '09:00', '16:00');
+
+        $stats = $this->statsByLabel();
+
+        $this->assertSame('2', $stats[__('dashboard.stats.checked_in_today')]);
+        $this->assertSame('2', $stats[__('dashboard.stats.checked_out_today')]);
+        $this->assertSame('1', $stats[__('dashboard.stats.currently_checked_in')]);
+    }
+
+    #[Test]
+    public function yesterdays_forgotten_check_out_is_not_somebody_still_at_their_desk(): void
+    {
+        $sara = $this->makeEmployee('sara@company.test');
+
+        $this->checkedIn($sara, app(AttendanceCalendar::class)->today()->subDay());
+
+        $stats = $this->statsByLabel();
+
+        $this->assertSame('0', $stats[__('dashboard.stats.checked_in_today')]);
+        $this->assertSame('0', $stats[__('dashboard.stats.checked_out_today')]);
+        $this->assertSame('0', $stats[__('dashboard.stats.currently_checked_in')]);
     }
 
     #[Test]

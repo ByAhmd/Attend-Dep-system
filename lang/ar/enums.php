@@ -11,6 +11,7 @@ return [
     'user_status' => [
         'active' => 'نشط',
         'inactive' => 'غير نشط',
+        'pending' => 'بانتظار التفعيل',
     ],
 
     'attendance_status' => [

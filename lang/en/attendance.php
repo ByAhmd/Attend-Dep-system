@@ -15,14 +15,18 @@ return [
         'greeting' => 'Hello, :name',
         'today' => 'Today, :date',
         'current_status' => 'Current status',
-        'check_in_time' => 'Check-in',
-        'check_out_time' => 'Check-out',
         'not_recorded' => '—',
         'status' => [
             'not_checked_in' => 'Not checked in',
             'checked_in' => 'Checked in',
             'checked_out' => 'Checked out',
         ],
+        'sessions_heading' => "Today's sessions",
+        'sessions_empty' => 'You have not checked in today yet.',
+        'session_number' => 'Session :number',
+        'sessions_count' => 'Sessions today',
+        'total_inside' => 'Time inside today',
+        'sessions_hint' => 'You may check out and check in again as often as the day requires.',
         'radius_hint' => 'You must be within :radius meters of the company to check in or out.',
         'location_not_configured' => 'The company location has not been configured yet. Contact your administrator.',
         'location_hint' => 'Your phone will ask for permission to use your location. Precise location (GPS) gives the best result.',
@@ -52,9 +56,9 @@ return [
     'rejections' => [
         'location_not_configured' => 'The company location has not been configured yet. Contact your administrator.',
         'inactive_account' => 'Your account is inactive. Contact your administrator.',
-        'already_checked_in' => 'You have already checked in today.',
+        'already_checked_in' => 'You are already checked in. Check out first if you are leaving.',
         'not_checked_in' => 'You have not checked in today, so you cannot check out.',
-        'already_checked_out' => 'You have already checked out today.',
+        'already_checked_out' => 'You have already checked out. Check in again when you are back.',
         'insufficient_accuracy' => 'Your location accuracy (±:accuracy m) is not good enough. Enable precise location/GPS and try again.',
         'outside_allowed_area' => 'You are outside the allowed attendance area. You must be within :radius meters of the company (you are :distance meters away).',
     ],
@@ -83,6 +87,7 @@ return [
         'check_in_location' => 'Check-in location',
         'check_out_location' => 'Check-out location',
         'status' => 'Status',
+        'duration' => 'Duration',
     ],
 
     'sections' => [
@@ -93,6 +98,8 @@ return [
     'units' => [
         'meters' => ':value m',
         'accuracy' => '±:value m',
+        'duration' => ':hours h :minutes m',
+        'duration_minutes' => ':minutes m',
     ],
 
     'placeholders' => [
@@ -107,6 +114,14 @@ return [
         'until' => 'Until',
     ],
 
+    'summaries' => [
+        'total_inside' => 'Total time inside',
+    ],
+
+    'groups' => [
+        'date' => 'Day',
+    ],
+
     'admin_actions' => [
         'view' => 'View',
         'open_map' => 'Open in map',
@@ -119,7 +134,7 @@ return [
 
     'pages' => [
         'list' => [
-            'subheading' => 'Every check-in and check-out, with the location it was recorded from.',
+            'subheading' => 'One row per session, with the location each check-in and check-out was recorded from.',
         ],
     ],
 ];

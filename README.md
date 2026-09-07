@@ -59,10 +59,25 @@ than `ATTENDANCE_MAX_ACCURACY_METERS` (default 100 m), refuses distances beyond 
 configured radius, and only then writes the record with its own timestamp. Refusals caused
 by location or accuracy are stored in `attendance_rejections` for the administrator.
 
-**Attendance rules.** One record per employee per calendar day in `Asia/Riyadh`, enforced
-by a unique index. Check-out requires today's open record. A record left open on an
-earlier day is shown as *Missing check-out* and is never closed automatically. Records are
-never edited or deleted from any interface; accounts are deactivated, never deleted.
+**Attendance rules.** One record is one **session**: a check-in and the check-out that
+closes it. An employee who leaves during the day checks out and checks in again on return,
+so a day may hold several sessions and the time inside is the sum of them. The database
+allows at most one *open* session per employee per calendar day in `Asia/Riyadh`. A session
+left open on an earlier day is shown as *Missing check-out* and is never closed
+automatically. Records are never edited or deleted from any interface; accounts are
+deactivated, never deleted.
+
+**Employee passwords.** Administrators never choose them. Adding an employee creates a
+*Pending* account with no password and issues a one-time invitation link, sent by email
+when SMTP is configured and always available for the administrator to copy and send by
+hand. The account becomes *Active* the moment its owner follows the link and chooses a
+password.
+
+**Presence pings.** While a session is open, the attendance page reports the employee's
+position every few minutes and the server records it with the distance it computed. This
+is supporting evidence only. A browser cannot report a position while the page is closed
+or the phone is asleep, so a gap between pings does not mean the employee was absent, and
+nothing in the interface claims otherwise. Tell your staff that this is recorded.
 
 ---
 
@@ -147,8 +162,14 @@ The command prompts for the password when `--password` is omitted. Alternatively
 `ADMIN_NAME`, `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `.env` and run `php artisan db:seed`;
 the seeder creates the account once and never overwrites an existing one.
 
-Every further account is created by an administrator under **Admin → Employees**, which
-also resets passwords and activates or deactivates accounts.
+Every further account is created by an administrator under **Admin → Employees**. Adding an
+employee there creates a *Pending* account and issues an invitation: the email is sent when
+SMTP is configured, and the administrator can always open **Copy invitation link** and send
+it by WhatsApp or SMS instead. Issuing a new link invalidates the previous one, so only one
+live invitation per person ever exists. **Resend invitation** appears only while an account
+is still pending. For an employee who has already set a password and then lost it,
+**Reset password** still lets an administrator set one directly, which matters when no
+mailbox is configured.
 
 ---
 

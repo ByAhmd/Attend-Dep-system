@@ -12,18 +12,17 @@ return [
     'sections' => [
         'details' => 'بيانات الموظف',
         'access' => 'الصلاحيات',
-        'password' => 'كلمة المرور',
     ],
 
     'fields' => [
         'name' => 'الاسم',
         'email' => 'البريد الإلكتروني',
-        'password' => 'كلمة المرور',
         'password_confirmation' => 'تأكيد كلمة المرور',
         'new_password' => 'كلمة المرور الجديدة',
         'role' => 'الدور',
         'status' => 'الحالة',
         'created_at' => 'تاريخ الإنشاء',
+        'invitation_link' => 'رابط الدعوة',
     ],
 
     'placeholders' => [
@@ -36,6 +35,9 @@ return [
         'status' => 'الموظف غير النشط لا يستطيع تسجيل الدخول أو تسجيل الحضور. يُحتفظ بسجله.',
         'role' => 'المسؤول يدير الموظفين والإعدادات؛ الموظف يسجّل الحضور والانصراف فقط.',
         'own_access' => 'لا يمكنك تغيير دورك أو حالتك.',
+        'invitation_on_create' => 'الموظف هو من يختار كلمة مروره. يُنشأ الحساب بانتظار التفعيل ويستطيع تسجيل الدخول بعد ضبطها.',
+        'invitation_link' => 'أرسل هذا الرابط إلى الموظف. يعمل مرة واحدة، ويلغي أي رابط سابق، وتنتهي صلاحيته خلال :minutes دقيقة.',
+        'pending_status' => 'يصبح هذا الحساب نشطًا تلقائيًا عندما يضبط الموظف كلمة مروره.',
     ],
 
     'validation' => [
@@ -51,6 +53,13 @@ return [
         'reset_password' => 'إعادة تعيين كلمة المرور',
         'reset_password_heading' => 'إعادة تعيين كلمة مرور :name',
         'reset_password_description' => 'ستتوقف كلمة المرور الحالية عن العمل فورًا.',
+        'invitation_link' => 'نسخ رابط الدعوة',
+        'invitation_link_heading' => 'رابط دعوة :name',
+        'invitation_link_description' => 'رابط جديد، لذا يتوقف أي رابط أُرسل سابقًا عن العمل. ولن يظهر إلا هنا.',
+        'invitation_link_close' => 'تم',
+        'resend_invitation' => 'إعادة إرسال الدعوة',
+        'resend_invitation_heading' => 'إعادة إرسال الدعوة إلى :name؟',
+        'resend_invitation_description' => 'سيصدر رابط جديد ويتوقف أي رابط سابق عن العمل.',
         'activate' => 'تفعيل',
         'activate_heading' => 'تفعيل :name؟',
         'deactivate' => 'إلغاء التفعيل',
@@ -61,8 +70,14 @@ return [
     'notifications' => [
         'password_reset' => 'تم تحديث كلمة المرور',
         'password_reset_body' => 'كلمة المرور الجديدة لـ :name سارية فورًا.',
+        'invited' => 'تم إرسال الدعوة',
+        'invited_body' => 'أُرسلت رسالة تحتوي رابط ضبط كلمة المرور إلى :email.',
+        'invitation_not_emailed' => 'تعذّر إرسال رسالة الدعوة',
+        'invitation_not_emailed_body' => 'الحساب جاهز. استخدم «نسخ رابط الدعوة» لتسليم الرابط إلى :name بنفسك.',
+        'link_copied' => 'تم نسخ رابط الدعوة',
         'activated' => ':name أصبح نشطًا',
         'deactivated' => ':name أصبح غير نشط',
+        'reopened' => ':name بانتظار دعوته من جديد',
     ],
 
     'empty' => [

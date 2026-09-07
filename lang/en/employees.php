@@ -12,18 +12,17 @@ return [
     'sections' => [
         'details' => 'Employee details',
         'access' => 'Access',
-        'password' => 'Password',
     ],
 
     'fields' => [
         'name' => 'Name',
         'email' => 'Email',
-        'password' => 'Password',
         'password_confirmation' => 'Confirm password',
         'new_password' => 'New password',
         'role' => 'Role',
         'status' => 'Status',
         'created_at' => 'Created',
+        'invitation_link' => 'Invitation link',
     ],
 
     'placeholders' => [
@@ -36,6 +35,9 @@ return [
         'status' => 'Inactive employees cannot sign in or record attendance. Their history is kept.',
         'role' => 'Administrators manage employees and settings; employees only check in and out.',
         'own_access' => 'You cannot change your own role or status.',
+        'invitation_on_create' => 'The employee chooses their own password. The account is created awaiting its invitation and can sign in once that password is set.',
+        'invitation_link' => 'Send this to the employee. It works once, replaces any earlier link, and expires in :minutes minutes.',
+        'pending_status' => 'This account becomes active by itself when the employee sets their password.',
     ],
 
     'validation' => [
@@ -51,6 +53,13 @@ return [
         'reset_password' => 'Reset password',
         'reset_password_heading' => 'Reset password for :name',
         'reset_password_description' => 'The current password stops working immediately.',
+        'invitation_link' => 'Copy invitation link',
+        'invitation_link_heading' => 'Invitation link for :name',
+        'invitation_link_description' => 'A fresh link, so any link sent earlier stops working. It is shown only here.',
+        'invitation_link_close' => 'Done',
+        'resend_invitation' => 'Resend invitation',
+        'resend_invitation_heading' => 'Resend the invitation to :name?',
+        'resend_invitation_description' => 'A new link is issued and any earlier one stops working.',
         'activate' => 'Activate',
         'activate_heading' => 'Activate :name?',
         'deactivate' => 'Deactivate',
@@ -61,8 +70,14 @@ return [
     'notifications' => [
         'password_reset' => 'Password updated',
         'password_reset_body' => 'The new password for :name is in effect immediately.',
+        'invited' => 'Invitation sent',
+        'invited_body' => 'An email with the link to set a password is on its way to :email.',
+        'invitation_not_emailed' => 'The invitation email could not be sent',
+        'invitation_not_emailed_body' => 'The account is ready. Use "Copy invitation link" to give :name the link yourself.',
+        'link_copied' => 'Invitation link copied',
         'activated' => ':name is now active',
         'deactivated' => ':name is now inactive',
+        'reopened' => ':name is awaiting their invitation again',
     ],
 
     'empty' => [

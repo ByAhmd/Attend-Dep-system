@@ -15,14 +15,18 @@ return [
         'greeting' => 'مرحبًا، :name',
         'today' => 'اليوم، :date',
         'current_status' => 'الحالة الحالية',
-        'check_in_time' => 'الحضور',
-        'check_out_time' => 'الانصراف',
         'not_recorded' => '—',
         'status' => [
             'not_checked_in' => 'لم يتم تسجيل الحضور',
             'checked_in' => 'تم تسجيل الحضور',
             'checked_out' => 'تم تسجيل الانصراف',
         ],
+        'sessions_heading' => 'جلسات اليوم',
+        'sessions_empty' => 'لم تسجّل حضورك اليوم بعد.',
+        'session_number' => 'الجلسة :number',
+        'sessions_count' => 'عدد جلسات اليوم',
+        'total_inside' => 'وقت التواجد اليوم',
+        'sessions_hint' => 'يمكنك تسجيل الانصراف ثم الحضور مرة أخرى كلما احتاج يومك ذلك.',
         'radius_hint' => 'يجب أن تكون ضمن :radius مترًا من موقع الشركة لتسجيل الحضور أو الانصراف.',
         'location_not_configured' => 'لم يتم ضبط موقع الشركة بعد. تواصل مع مسؤول النظام.',
         'location_hint' => 'سيطلب هاتفك الإذن باستخدام موقعك. تفعيل الموقع الدقيق (GPS) يعطي أفضل نتيجة.',
@@ -52,9 +56,9 @@ return [
     'rejections' => [
         'location_not_configured' => 'لم يتم ضبط موقع الشركة بعد. تواصل مع مسؤول النظام.',
         'inactive_account' => 'حسابك غير نشط. تواصل مع مسؤول النظام.',
-        'already_checked_in' => 'لقد سجّلت حضورك اليوم مسبقًا.',
+        'already_checked_in' => 'أنت مسجّل الحضور بالفعل. سجّل الانصراف أولًا إذا كنت ستغادر.',
         'not_checked_in' => 'لم تسجّل حضورك اليوم، لذا لا يمكنك تسجيل الانصراف.',
-        'already_checked_out' => 'لقد سجّلت انصرافك اليوم مسبقًا.',
+        'already_checked_out' => 'لقد سجّلت انصرافك بالفعل. سجّل الحضور مرة أخرى عند عودتك.',
         'insufficient_accuracy' => 'دقة موقعك (±:accuracy م) غير كافية. فعّل الموقع الدقيق/GPS وحاول مرة أخرى.',
         'outside_allowed_area' => 'أنت خارج نطاق الحضور المسموح. يجب أن تكون ضمن :radius مترًا من الشركة (أنت على بعد :distance مترًا).',
     ],
@@ -83,6 +87,7 @@ return [
         'check_in_location' => 'موقع الحضور',
         'check_out_location' => 'موقع الانصراف',
         'status' => 'الحالة',
+        'duration' => 'المدة',
     ],
 
     'sections' => [
@@ -93,6 +98,8 @@ return [
     'units' => [
         'meters' => ':value م',
         'accuracy' => '±:value م',
+        'duration' => ':hours س :minutes د',
+        'duration_minutes' => ':minutes د',
     ],
 
     'placeholders' => [
@@ -107,6 +114,14 @@ return [
         'until' => 'إلى',
     ],
 
+    'summaries' => [
+        'total_inside' => 'إجمالي وقت التواجد',
+    ],
+
+    'groups' => [
+        'date' => 'اليوم',
+    ],
+
     'admin_actions' => [
         'view' => 'عرض',
         'open_map' => 'فتح في الخريطة',
@@ -119,7 +134,7 @@ return [
 
     'pages' => [
         'list' => [
-            'subheading' => 'كل عمليات الحضور والانصراف مع الموقع الذي سُجّلت منه.',
+            'subheading' => 'سطر لكل جلسة، مع الموقع الذي سُجّل منه كل حضور وانصراف.',
         ],
     ],
 ];

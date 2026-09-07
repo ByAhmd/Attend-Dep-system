@@ -17,7 +17,14 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * One employee's attendance for one day.
+ * One attendance session: a check-in and the check-out that closes it.
+ *
+ * An employee who leaves during the day checks out and checks in again on
+ * return, so one day holds as many rows as the employee made sessions.
+ * attendance_date stays the day the session started, and the database
+ * allows at most one open session per employee per day (see the
+ * open_attendance_date generated column, which nothing here writes or
+ * reads: it exists only to carry that unique index).
  *
  * Written only by AttendanceWorkflow. Every timestamp is the server's; every
  * coordinate, accuracy and distance is what the server saw and computed at
@@ -85,6 +92,25 @@ final class Attendance extends Model
     }
 
     /**
+     * How long the session lasted, or null while it is still running.
+     *
+     * Seconds rather than an interval: it is what the day's total is summed
+     * in and what the display formatter takes, and both moments are stored
+     * to the whole second, so nothing is lost. An open session has no
+     * length yet - counting the minutes since its check-in would produce a
+     * figure that changes every time a page is opened, and would read as
+     * time already worked.
+     */
+    public function durationInSeconds(): ?int
+    {
+        if ($this->check_out_at === null) {
+            return null;
+        }
+
+        return (int) $this->check_in_at->diffInSeconds($this->check_out_at);
+    }
+
+    /**
      * Derived, never stored: an open record is a live session on its own day
      * and a missing check-out on any earlier one.
      */
@@ -129,5 +155,28 @@ final class Attendance extends Model
     public function scopeOpen(Builder $query): Builder
     {
         return $query->whereNull('check_out_at');
+    }
+
+    /**
+     * One employee's sessions. Takes the model or the key, so a caller
+     * holding either does not have to load the other.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeForUser(Builder $query, User|int $user): Builder
+    {
+        return $query->where('user_id', $user instanceof User ? $user->id : $user);
+    }
+
+    /**
+     * A day's sessions in the order they happened.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeInSessionOrder(Builder $query): Builder
+    {
+        return $query->orderBy('attendance_date')->orderBy('check_in_at')->orderBy('id');
     }
 }

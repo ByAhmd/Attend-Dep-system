@@ -19,13 +19,14 @@ use Tests\Concerns\CreatesAttendanceFixtures;
 use Tests\TestCase;
 
 /**
- * EmployeeResource: the one screen that creates accounts, changes what
- * they may do, and hands them a new password.
+ * EmployeeResource: the one screen that creates accounts, invites their
+ * owners, changes what they may do, and hands an existing account a new
+ * password.
  *
  * The rules under test are the business rules of section 3: accounts are
- * deactivated and never deleted, and an administrator never changes their
- * own role or status - not through the form, and not by editing the
- * request the form sends.
+ * deactivated and never deleted, an administrator never changes their own
+ * role or status - not through the form, and not by editing the request the
+ * form sends - and nobody but the employee chooses the employee's password.
  */
 final class EmployeeResourceTest extends TestCase
 {
@@ -55,40 +56,38 @@ final class EmployeeResourceTest extends TestCase
     }
 
     #[Test]
-    public function the_create_form_carries_the_account_fields_and_the_password(): void
+    public function the_create_form_asks_only_who_the_employee_is_and_what_they_may_do(): void
     {
+        // No password, and no status either: a new account is pending until
+        // its owner sets one, which is not something to choose here.
         Livewire::test(CreateEmployee::class)
             ->assertFormFieldExists('name')
             ->assertFormFieldExists('email')
             ->assertFormFieldExists('role')
-            ->assertFormFieldExists('status')
-            ->assertFormFieldExists('password')
-            ->assertFormFieldExists('password_confirmation')
-            ->assertFormFieldVisible('password');
+            ->assertFormFieldHidden('status')
+            ->assertFormFieldDoesNotExist('password')
+            ->assertFormFieldDoesNotExist('password_confirmation');
     }
 
     #[Test]
-    public function the_password_is_not_on_the_edit_form(): void
+    public function no_password_field_exists_on_the_edit_form_either(): void
     {
-        // Afterwards it changes only through the reset action, which asks
-        // for its own confirmation instead of riding along with a rename.
+        // A password changes only through the reset action, which asks for
+        // its own confirmation instead of riding along with a rename.
         $employee = $this->makeEmployee();
 
         Livewire::test(EditEmployee::class, ['record' => $employee->getRouteKey()])
-            ->assertFormFieldHidden('password');
+            ->assertFormFieldDoesNotExist('password');
     }
 
     #[Test]
-    public function creating_an_employee_stores_a_hashed_password_with_the_chosen_role_and_status(): void
+    public function creating_an_employee_makes_a_pending_account_with_no_password(): void
     {
         Livewire::test(CreateEmployee::class)
             ->fillForm([
                 'name' => 'Sara Ali',
                 'email' => 'sara@company.test',
                 'role' => UserRole::Admin->value,
-                'status' => UserStatus::Inactive->value,
-                'password' => 'first-password-1',
-                'password_confirmation' => 'first-password-1',
             ])
             ->call('create')
             ->assertHasNoFormErrors();
@@ -97,43 +96,24 @@ final class EmployeeResourceTest extends TestCase
 
         $this->assertNotNull($created);
         $this->assertSame(UserRole::Admin, $created->role);
-        $this->assertSame(UserStatus::Inactive, $created->status);
-        $this->assertNotSame('first-password-1', $created->password);
-        $this->assertTrue(Hash::check('first-password-1', $created->password));
+        $this->assertSame(UserStatus::Pending, $created->status);
+        $this->assertNull($created->password);
     }
 
     #[Test]
-    public function the_password_must_be_at_least_eight_characters(): void
+    public function creating_an_employee_reports_that_the_invitation_could_not_be_emailed(): void
     {
-        // Confirmation matches, so only the length rule can refuse this.
+        // The suite runs on the array mailer, exactly as the live
+        // deployment runs on the log mailer: nothing is delivered, so the
+        // administrator is pointed at the link instead.
         Livewire::test(CreateEmployee::class)
             ->fillForm([
                 'name' => 'Sara Ali',
                 'email' => 'sara@company.test',
-                'password' => 'short',
-                'password_confirmation' => 'short',
             ])
             ->call('create')
-            ->assertHasFormErrors(['password' => 'min']);
-
-        $this->assertNull(User::query()->where('email', 'sara@company.test')->first());
-    }
-
-    #[Test]
-    public function the_password_must_be_confirmed(): void
-    {
-        // Long enough, so only the confirmation rule can refuse this.
-        Livewire::test(CreateEmployee::class)
-            ->fillForm([
-                'name' => 'Sara Ali',
-                'email' => 'sara@company.test',
-                'password' => 'long-enough-1',
-                'password_confirmation' => 'something-else',
-            ])
-            ->call('create')
-            ->assertHasFormErrors(['password' => 'confirmed']);
-
-        $this->assertNull(User::query()->where('email', 'sara@company.test')->first());
+            ->assertHasNoFormErrors()
+            ->assertNotified(__('employees.notifications.invitation_not_emailed'));
     }
 
     #[Test]
@@ -145,8 +125,6 @@ final class EmployeeResourceTest extends TestCase
             ->fillForm([
                 'name' => 'Another Person',
                 'email' => 'taken@company.test',
-                'password' => 'first-password-1',
-                'password_confirmation' => 'first-password-1',
             ])
             ->call('create')
             ->assertHasFormErrors(['email' => 'unique']);
@@ -206,6 +184,92 @@ final class EmployeeResourceTest extends TestCase
 
         $this->assertSame(UserRole::Admin, $employee->role);
         $this->assertSame(UserStatus::Inactive, $employee->status);
+    }
+
+    #[Test]
+    public function a_waiting_accounts_status_is_locked_and_a_submitted_change_is_ignored(): void
+    {
+        // Otherwise an administrator could mark the account active while it
+        // still has no password: it would look usable and nobody could ever
+        // sign in to it.
+        $employee = $this->pendingEmployee();
+
+        Livewire::test(EditEmployee::class, ['record' => $employee->getRouteKey()])
+            ->assertFormFieldDisabled('status')
+            ->assertSee(__('employees.helpers.pending_status'))
+            ->fillForm(['status' => UserStatus::Active->value])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame(UserStatus::Pending, $employee->fresh()->status);
+    }
+
+    #[Test]
+    public function the_invitation_actions_are_offered_only_while_an_account_is_waiting(): void
+    {
+        $pending = $this->pendingEmployee();
+        $active = $this->makeEmployee('active@company.test');
+        $inactive = $this->makeEmployee('inactive@company.test', UserStatus::Inactive);
+
+        Livewire::test(ListEmployees::class)
+            ->assertTableActionVisible('copyInvitationLink', $pending)
+            ->assertTableActionVisible('resendInvitation', $pending)
+            ->assertTableActionHidden('copyInvitationLink', $active)
+            ->assertTableActionHidden('resendInvitation', $active)
+            ->assertTableActionHidden('copyInvitationLink', $inactive)
+            ->assertTableActionHidden('resendInvitation', $inactive);
+    }
+
+    #[Test]
+    public function the_reset_password_action_is_hidden_while_an_account_is_waiting(): void
+    {
+        // It has no password to replace, and giving it one here would leave
+        // it pending and unable to sign in with it.
+        $pending = $this->pendingEmployee();
+
+        Livewire::test(ListEmployees::class)
+            ->assertTableActionHidden('resetPassword', $pending);
+
+        Livewire::test(EditEmployee::class, ['record' => $pending->getRouteKey()])
+            ->assertActionHidden('resetPassword');
+    }
+
+    #[Test]
+    public function the_copy_link_action_shows_a_link_the_administrator_can_pass_on(): void
+    {
+        $pending = $this->pendingEmployee();
+
+        $link = Livewire::test(ListEmployees::class)
+            ->mountTableAction('copyInvitationLink', $pending)
+            ->get('mountedActions.0.data.invitation_link');
+
+        $this->assertIsString($link);
+        $this->assertStringStartsWith('https://', $link);
+        $this->assertStringContainsString('/password-reset/reset', $link);
+        $this->assertStringContainsString(urlencode($pending->email), $link);
+    }
+
+    #[Test]
+    public function the_copy_link_action_is_offered_from_the_edit_page_too(): void
+    {
+        $pending = $this->pendingEmployee();
+
+        Livewire::test(EditEmployee::class, ['record' => $pending->getRouteKey()])
+            ->assertActionVisible('copyInvitationLink')
+            ->assertActionVisible('resendInvitation');
+    }
+
+    #[Test]
+    public function resending_the_invitation_reports_what_happened_to_the_email(): void
+    {
+        $pending = $this->pendingEmployee();
+
+        Livewire::test(ListEmployees::class)
+            ->callTableAction('resendInvitation', $pending)
+            ->assertHasNoTableActionErrors()
+            ->assertNotified(__('employees.notifications.invitation_not_emailed'));
+
+        $this->assertSame(UserStatus::Pending, $pending->fresh()->status);
     }
 
     #[Test]
@@ -294,6 +358,26 @@ final class EmployeeResourceTest extends TestCase
     }
 
     #[Test]
+    public function a_withdrawn_invitation_goes_back_to_waiting_rather_than_active(): void
+    {
+        // Reactivating an account that never set a password would produce
+        // one nobody can sign in to, with the invitation actions hidden.
+        $employee = $this->pendingEmployee();
+
+        Livewire::test(ListEmployees::class)
+            ->callTableAction('toggleStatus', $employee)
+            ->assertNotified(__('employees.notifications.deactivated', ['name' => $employee->name]));
+
+        $this->assertSame(UserStatus::Inactive, $employee->fresh()->status);
+
+        Livewire::test(ListEmployees::class)
+            ->callTableAction('toggleStatus', $employee->fresh())
+            ->assertNotified(__('employees.notifications.reopened', ['name' => $employee->name]));
+
+        $this->assertSame(UserStatus::Pending, $employee->fresh()->status);
+    }
+
+    #[Test]
     public function the_toggle_status_action_on_the_edit_page_refreshes_the_form(): void
     {
         // Otherwise the form still says "active" and the next Save would
@@ -352,5 +436,14 @@ final class EmployeeResourceTest extends TestCase
     public function an_administrator_reaches_the_employee_list_over_http(): void
     {
         $this->get('/admin/employees')->assertOk();
+    }
+
+    private function pendingEmployee(string $email = 'waiting@company.test'): User
+    {
+        return User::factory()->create([
+            'email' => $email,
+            'status' => UserStatus::Pending,
+            'password' => null,
+        ]);
     }
 }
