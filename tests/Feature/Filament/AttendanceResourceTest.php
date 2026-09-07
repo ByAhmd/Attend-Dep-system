@@ -16,7 +16,11 @@ use Tests\Concerns\CreatesAttendanceFixtures;
 use Tests\TestCase;
 
 /**
- * AttendanceResource: the read-only list of every check-in and check-out.
+ * AttendanceResource: the read-only list of every session.
+ *
+ * A day an employee left and came back is several rows, so the list, the
+ * filters, the grouping and the time-inside summary all have to keep
+ * meaning something when one person appears three times on one date.
  *
  * Read-only is the point. The workflow is the only writer, so the resource
  * has one page and the create route must not exist at all - not be
@@ -59,6 +63,66 @@ final class AttendanceResourceTest extends TestCase
     }
 
     #[Test]
+    public function every_session_of_a_day_is_a_row_of_its_own_with_its_length(): void
+    {
+        $sara = $this->makeEmployee('sara@company.test');
+
+        $morning = $this->attendanceSession($sara, '08:00', '12:00');
+        $afternoon = $this->attendanceSession($sara, '13:00', '17:30');
+        $evening = $this->attendanceSession($sara, '19:00');
+
+        Livewire::test(ListAttendances::class)
+            ->assertCanSeeTableRecords([$evening, $afternoon, $morning], inOrder: true)
+            ->assertSee(__('attendance.fields.duration'))
+            ->assertSee(__('attendance.units.duration', ['hours' => '4', 'minutes' => '0']))
+            ->assertSee(__('attendance.units.duration', ['hours' => '4', 'minutes' => '30']))
+            ->assertSee(__('attendance.placeholders.no_check_out'))
+            ->assertOk();
+    }
+
+    #[Test]
+    public function the_duration_summary_adds_up_the_time_inside_for_what_is_selected(): void
+    {
+        $sara = $this->makeEmployee('sara@company.test');
+        $omar = $this->makeEmployee('omar@company.test');
+
+        $this->attendanceSession($sara, '08:00', '12:00');
+        $this->attendanceSession($sara, '13:00', '17:00');
+        // Still inside: an open session has no length to add.
+        $this->attendanceSession($sara, '18:00');
+        $this->attendanceSession($omar, '09:00', '15:15');
+
+        Livewire::test(ListAttendances::class)
+            ->assertTableColumnSummarySet(
+                'duration',
+                'total_inside',
+                __('attendance.units.duration', ['hours' => '14', 'minutes' => '15']),
+            )
+            ->filterTable('user_id', $sara->id)
+            ->assertTableColumnSummarySet(
+                'duration',
+                'total_inside',
+                __('attendance.units.duration', ['hours' => '8', 'minutes' => '0']),
+            );
+    }
+
+    #[Test]
+    public function the_list_can_be_grouped_by_day(): void
+    {
+        $sara = $this->makeEmployee('sara@company.test');
+        $yesterday = $this->today()->subDay();
+
+        $morning = $this->attendanceSession($sara, '08:00', '12:00');
+        $afternoon = $this->attendanceSession($sara, '13:00', '17:00');
+        $before = $this->attendanceSession($sara, '08:00', '16:00', $yesterday);
+
+        Livewire::test(ListAttendances::class)
+            ->set('tableGrouping', 'attendance_date')
+            ->assertCanSeeTableRecords([$morning, $afternoon, $before])
+            ->assertOk();
+    }
+
+    #[Test]
     public function the_employee_filter_shows_only_that_employees_records(): void
     {
         $sara = $this->makeEmployee('sara@company.test');
@@ -71,6 +135,22 @@ final class AttendanceResourceTest extends TestCase
             ->filterTable('user_id', $sara->id)
             ->assertCanSeeTableRecords([$hers])
             ->assertCanNotSeeTableRecords([$his]);
+    }
+
+    #[Test]
+    public function the_date_filter_keeps_every_session_of_the_day_it_selects(): void
+    {
+        $sara = $this->makeEmployee();
+        $yesterday = $this->today()->subDay();
+
+        $first = $this->attendanceSession($sara, '08:00', '12:00', $yesterday);
+        $second = $this->attendanceSession($sara, '13:00', '17:00', $yesterday);
+        $todays = $this->attendanceSession($sara, '08:30');
+
+        Livewire::test(ListAttendances::class)
+            ->filterTable('date', ['date' => $yesterday->toDateString()])
+            ->assertCanSeeTableRecords([$first, $second])
+            ->assertCanNotSeeTableRecords([$todays]);
     }
 
     #[Test]

@@ -11,6 +11,7 @@ return [
     'user_status' => [
         'active' => 'Active',
         'inactive' => 'Inactive',
+        'pending' => 'Awaiting invitation',
     ],
 
     'attendance_status' => [

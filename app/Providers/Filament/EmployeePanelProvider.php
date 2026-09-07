@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Providers\Filament;
 
+use App\Filament\Auth\ResetPassword;
 use App\Filament\Employee\Pages\Attendance;
 use App\Filament\Employee\Widgets\AttendanceHistoryWidget;
 use App\Providers\Filament\Concerns\ConfiguresPanel;
@@ -20,6 +21,11 @@ use Filament\Support\Enums\Width;
  * login page, session handling, CSRF, rate limiting and a mobile layout
  * with nothing to maintain. The sidebar is switched off: there is one page
  * and the top bar holds the sign-out.
+ *
+ * Password reset lives here and only here. It is the screen an invited
+ * employee lands on to choose their first password, so the invitation link
+ * has somewhere to point; the admin panel keeps no reset flow, because
+ * administrators are created with app:create-admin.
  */
 final class EmployeePanelProvider extends PanelProvider
 {
@@ -33,6 +39,10 @@ final class EmployeePanelProvider extends PanelProvider
                 ->id(PanelAccess::EMPLOYEE_PANEL_ID)
                 ->path('')
                 ->login()
+                // Filament's request screen, but our own reset screen: the
+                // stock one refuses an account that cannot enter the panel,
+                // which is precisely an account still waiting to be invited.
+                ->passwordReset(resetAction: ResetPassword::class)
                 ->navigation(false)
                 // A phone-width card even on a desktop: the screen is two
                 // buttons and a status, and stretching it adds nothing.

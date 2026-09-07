@@ -23,9 +23,9 @@ use Tests\TestCase;
 /**
  * The invariants the database enforces on its own, whatever writes to it.
  *
- * These run against MySQL on purpose: the unique index, the CHECK
- * constraints and the foreign-key actions are the behaviour under test, and
- * SQLite would leave most of them unexercised.
+ * These run against MySQL on purpose: the unique index on the generated
+ * column, the CHECK constraints and the foreign-key actions are the
+ * behaviour under test, and SQLite would leave most of them unexercised.
  */
 final class AttendanceSchemaTest extends TestCase
 {
@@ -47,14 +47,47 @@ final class AttendanceSchemaTest extends TestCase
     }
 
     #[Test]
-    public function one_employee_has_at_most_one_record_per_day(): void
+    public function one_employee_has_at_most_one_open_session_per_day(): void
     {
+        // The generated column open_attendance_date carries the date only
+        // while the session is open, so the unique index on
+        // (user_id, open_attendance_date) forbids exactly this and nothing
+        // else - whatever writes the row, workflow or not.
         $employee = $this->makeEmployee();
         $this->checkedIn($employee);
 
         $this->expectException(UniqueConstraintViolationException::class);
 
         $this->checkedIn($employee);
+    }
+
+    #[Test]
+    public function any_number_of_closed_sessions_fit_in_one_day(): void
+    {
+        $employee = $this->makeEmployee();
+
+        $this->attendanceSession($employee, '08:00', '10:00');
+        $this->attendanceSession($employee, '10:30', '12:30');
+        $this->attendanceSession($employee, '13:00', '17:00');
+
+        // ... and one still running on top of them.
+        $this->attendanceSession($employee, '17:30');
+
+        $this->assertDatabaseCount('attendances', 4);
+        $this->assertSame(1, Attendance::query()->open()->count());
+    }
+
+    #[Test]
+    public function a_session_left_open_on_an_earlier_day_does_not_block_todays(): void
+    {
+        $employee = $this->makeEmployee();
+
+        $this->checkedIn($employee, Carbon::now()->subDay());
+        $this->checkedIn($employee);
+
+        // Two open rows for one employee, and the index allows them: they
+        // carry different dates, so they are different days.
+        $this->assertSame(2, Attendance::query()->open()->count());
     }
 
     #[Test]

@@ -8,6 +8,7 @@ use App\Enums\UserStatus;
 use App\Models\Attendance;
 use App\Models\AttendanceSetting;
 use App\Models\User;
+use App\Services\Attendance\AttendanceCalendar;
 use App\Services\Geolocation\DistanceCalculator;
 use App\Support\Geo\Coordinates;
 use App\Support\Geo\LocationReading;
@@ -131,7 +132,34 @@ trait CreatesAttendanceFixtures
     }
 
     /**
-     * An open attendance record (checked in, not out) for the employee, on
+     * One session at the wall-clock times given, on today's date unless
+     * another day is given: attendanceSession($sara, '08:00', '12:30') for a
+     * closed one, attendanceSession($sara, '13:15') for one still open.
+     *
+     * The times are Riyadh wall-clock times on that day, so a day with
+     * several sessions reads in a test the way it reads on the screen.
+     * Named in full because Laravel's own TestCase::session() sets session
+     * data, and a fixture must not shadow it.
+     */
+    protected function attendanceSession(
+        User $employee,
+        string $checkIn,
+        ?string $checkOut = null,
+        ?CarbonInterface $on = null,
+    ): Attendance {
+        $day = CarbonImmutable::instance($on ?? app(AttendanceCalendar::class)->today())->startOfDay();
+
+        return Attendance::factory()
+            ->for($employee)
+            ->session(
+                $day->setTimeFromTimeString($checkIn),
+                $checkOut === null ? null : $day->setTimeFromTimeString($checkOut),
+            )
+            ->create();
+    }
+
+    /**
+     * An open attendance session (checked in, not out) for the employee, on
      * today's date unless another day is given.
      */
     protected function checkedIn(User $employee, ?CarbonInterface $on = null): Attendance

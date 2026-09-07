@@ -16,9 +16,11 @@ use Tests\TestCase;
 /**
  * The history table under the employee screen.
  *
- * Its one promise is scope: an employee reads their own days and nobody
- * else's. The ordering and empty state are checked because they are what
- * the employee sees; the scope is checked because it is what they must not.
+ * One row is one session, so a day the employee left and returned appears
+ * as the sessions it was. Its one promise is scope: an employee reads their
+ * own sessions and nobody else's. The ordering and empty state are checked
+ * because they are what the employee sees; the scope is checked because it
+ * is what they must not.
  */
 final class AttendanceHistoryWidgetTest extends TestCase
 {
@@ -67,6 +69,26 @@ final class AttendanceHistoryWidgetTest extends TestCase
             ->assertCanNotSeeTableRecords([$mine])
             ->assertSee(__('attendance.history.empty_heading'))
             ->assertSee(__('attendance.history.empty_description'))
+            ->assertOk();
+    }
+
+    #[Test]
+    public function every_session_of_a_day_is_listed_with_the_latest_first(): void
+    {
+        $employee = $this->makeEmployee();
+
+        // A day with a lunch break in it: three rows, not one, and the last
+        // one started is the one the employee sees at the top.
+        $morning = $this->attendanceSession($employee, '08:00', '12:00');
+        $afternoon = $this->attendanceSession($employee, '13:00', '17:00');
+        $evening = $this->attendanceSession($employee, '18:00');
+
+        $this->actingAs($employee);
+
+        Livewire::test(AttendanceHistoryWidget::class)
+            ->assertCanSeeTableRecords([$evening, $afternoon, $morning], inOrder: true)
+            ->assertSee(__('attendance.fields.duration'))
+            ->assertSee(__('attendance.units.duration', ['hours' => '4', 'minutes' => '0']))
             ->assertOk();
     }
 

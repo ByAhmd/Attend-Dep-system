@@ -209,6 +209,86 @@ final class AttendancePageTest extends TestCase
     }
 
     #[Test]
+    public function checking_in_again_after_checking_out_opens_a_second_session(): void
+    {
+        $this->configureCompanyLocation();
+        $now = $this->freezeClock('2026-09-02 13:05:00');
+        $employee = $this->signInEmployee();
+        $this->attendanceSession($employee, '08:00', '12:30');
+
+        Livewire::test(Attendance::class)
+            ->call('checkIn', $this->payload($this->readingMetersFromCompany(80.0)))
+            ->assertSet('feedbackStatus', 'success')
+            ->assertSee(__('attendance.page.status.checked_in'));
+
+        $sessions = AttendanceRecord::query()->where('user_id', $employee->id)->orderBy('check_in_at')->get();
+
+        $this->assertCount(2, $sessions);
+        $this->assertSame('12:30:00', $sessions[0]->check_out_at?->toTimeString());
+        $this->assertTrue($now->equalTo($sessions[1]->check_in_at));
+        $this->assertNull($sessions[1]->check_out_at);
+        $this->assertSame('2026-09-02', $sessions[1]->attendance_date->toDateString());
+    }
+
+    #[Test]
+    public function the_page_lists_todays_sessions_with_their_times_and_the_total_inside(): void
+    {
+        $this->configureCompanyLocation();
+        $employee = $this->signInEmployee();
+        $this->freezeClock();
+
+        $this->attendanceSession($employee, '08:00', '12:30');
+        $this->attendanceSession($employee, '13:15');
+
+        Livewire::test(Attendance::class)
+            ->assertOk()
+            ->assertSee(__('attendance.page.sessions_heading'))
+            ->assertSee(__('attendance.page.session_number', ['number' => 1]))
+            ->assertSee(__('attendance.page.session_number', ['number' => 2]))
+            ->assertSee('08:00')
+            ->assertSee('12:30')
+            ->assertSee('13:15')
+            // Four and a half hours: only the closed session counts.
+            ->assertSee(__('attendance.units.duration', ['hours' => '4', 'minutes' => '30']))
+            ->assertSee(__('attendance.page.total_inside'))
+            ->assertSee(__('attendance.page.status.checked_in'));
+    }
+
+    #[Test]
+    public function a_day_with_nothing_recorded_says_so(): void
+    {
+        $this->configureCompanyLocation();
+        $this->signInEmployee();
+
+        Livewire::test(Attendance::class)
+            ->assertSee(__('attendance.page.sessions_empty'))
+            ->assertSee(__('attendance.page.status.not_checked_in'));
+    }
+
+    #[Test]
+    public function the_check_in_button_comes_back_once_the_employee_has_checked_out(): void
+    {
+        $this->configureCompanyLocation();
+        $this->freezeClock('2026-09-02 13:05:00');
+        $employee = $this->signInEmployee();
+        $this->attendanceSession($employee, '08:00', '12:30');
+
+        $component = Livewire::test(Attendance::class);
+
+        $component
+            ->assertOk()
+            ->assertSee(__('attendance.page.status.checked_out'));
+
+        // Check Out is the disabled one now; Check In is offered again.
+        $this->assertSame(1, $this->disabledButtonCount($component->html()));
+
+        $component
+            ->call('checkOut', $this->payload($this->readingMetersFromCompany(80.0)))
+            ->assertSet('feedbackStatus', 'danger')
+            ->assertSet('feedbackMessage', __('attendance.rejections.already_checked_out'));
+    }
+
+    #[Test]
     public function the_eleventh_rapid_attempt_is_rate_limited(): void
     {
         $this->configureCompanyLocation();
@@ -369,9 +449,9 @@ final class AttendancePageTest extends TestCase
         return $employee;
     }
 
-    private function freezeClock(): CarbonImmutable
+    private function freezeClock(?string $riyadhDateTime = null): CarbonImmutable
     {
-        $now = CarbonImmutable::parse(self::FROZEN_NOW, 'Asia/Riyadh');
+        $now = CarbonImmutable::parse($riyadhDateTime ?? self::FROZEN_NOW, 'Asia/Riyadh');
 
         Carbon::setTestNow($now);
 

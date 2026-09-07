@@ -56,7 +56,30 @@ CACHE_STORE=database
 QUEUE_CONNECTION=sync
 
 ATTENDANCE_MAX_ACCURACY_METERS=100
+ATTENDANCE_PING_INTERVAL_SECONDS=300
 ```
+
+### Invitation email (optional)
+
+Employees set their own password through an invitation link. The link always works and the
+administrator can copy it and send it by hand, so mail is optional. Configure it only if
+you want the invitation to arrive by email as well. On Hostinger, create a mailbox under
+Emails, then add its SMTP details:
+
+```dotenv
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.hostinger.com
+MAIL_PORT=465
+MAIL_SCHEME=smtps
+MAIL_USERNAME=attendance@your-domain
+MAIL_PASSWORD=<mailbox password>
+MAIL_FROM_ADDRESS=attendance@your-domain
+MAIL_FROM_NAME="${APP_NAME}"
+```
+
+While `MAIL_MAILER` is `log`, the application does not pretend to send anything: it tells
+the administrator that no email was sent and to use the link. That is deliberate, so
+nobody waits for a message that was only ever written to a log file.
 
 Leave `ADMIN_*` blank and create the administrator with the command in step 8. Never
 commit `.env`.

@@ -10,6 +10,7 @@ use App\Filament\Resources\AttendanceRejections\AttendanceRejectionResource;
 use App\Filament\Resources\Attendances\AttendanceResource;
 use App\Filament\Resources\AttendanceSettings\AttendanceSettingResource;
 use App\Filament\Resources\Employees\EmployeeResource;
+use App\Filament\Resources\PresencePings\PresencePingResource;
 use App\Filament\Widgets\AttendanceStatsWidget;
 use App\Providers\Filament\Concerns\ConfiguresPanel;
 use App\Support\Filament\PanelAccess;
@@ -19,7 +20,8 @@ use Filament\PanelProvider;
 
 /**
  * The administration panel at /admin: employees, attendance records, the
- * audit trail of rejected attempts, and the company location settings.
+ * audit trail of rejected attempts, the presence pings recorded during open
+ * sessions, and the company location settings.
  *
  * Resources and pages are listed explicitly rather than discovered, so
  * nothing can land on a panel by being in the wrong directory.
@@ -40,6 +42,7 @@ final class AdminPanelProvider extends PanelProvider
                     EmployeeResource::class,
                     AttendanceResource::class,
                     AttendanceRejectionResource::class,
+                    PresencePingResource::class,
                     AttendanceSettingResource::class,
                 ])
                 ->pages([

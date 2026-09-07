@@ -6,6 +6,8 @@ namespace App\Filament\Resources\Employees\Tables;
 
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Filament\Resources\Employees\Actions\CopyInvitationLinkAction;
+use App\Filament\Resources\Employees\Actions\InviteEmployeeAction;
 use App\Filament\Resources\Employees\Actions\ResetPasswordAction;
 use App\Filament\Resources\Employees\Actions\ToggleStatusAction;
 use Filament\Actions\EditAction;
@@ -16,6 +18,10 @@ use Filament\Tables\Table;
 /**
  * Employee list. No bulk actions and no delete: accounts are switched off
  * one at a time, with a confirmation naming the person.
+ *
+ * An account still waiting for its invitation is amber rather than green or
+ * grey: it is neither working nor switched off, and it is the one row on
+ * this screen that needs somebody to do something about it.
  */
 final class EmployeesTable
 {
@@ -44,6 +50,7 @@ final class EmployeesTable
                     ->color(fn (UserStatus $state): string => match ($state) {
                         UserStatus::Active => 'success',
                         UserStatus::Inactive => 'gray',
+                        UserStatus::Pending => 'warning',
                     }),
 
                 TextColumn::make('created_at')
@@ -63,6 +70,8 @@ final class EmployeesTable
             ])
             ->recordActions([
                 EditAction::make(),
+                CopyInvitationLinkAction::make(),
+                InviteEmployeeAction::make(),
                 ResetPasswordAction::make(),
                 ToggleStatusAction::make(),
             ])

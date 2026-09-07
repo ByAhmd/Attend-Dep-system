@@ -20,11 +20,24 @@ use Illuminate\Support\Facades\DB;
 /**
  * The attendance rules, in one place.
  *
- * Check-in requires an active account, no record yet for today, and a
- * trustworthy reading inside the radius. Check-out requires today's record
- * to exist and still be open, and the same location test. Two taps arriving
- * together cannot both succeed: a double check-in is settled by the unique
- * index on (user_id, attendance_date), a double check-out by a row lock.
+ * A row is one session: a check-in and the check-out that closes it. An
+ * employee who leaves during the day checks out and checks in again on
+ * return, and the return is verified by the geofence like any other
+ * check-in, so time inside and outside becomes visible.
+ *
+ * Check-in requires an active account, no OPEN session today, and a
+ * trustworthy reading inside the radius. Sessions already completed today
+ * are not in the way - that is the whole point - and a session left open on
+ * an earlier day is not either: it stays open, is reported as a missing
+ * check-out, and never becomes a reason to refuse someone standing at the
+ * door this morning. Check-out requires an open session TODAY and the same
+ * location test; yesterday's open session still cannot be closed today,
+ * because a check-out time invented for a day that has ended is invented
+ * attendance.
+ *
+ * Two taps arriving together cannot both succeed: a double check-in is
+ * settled by the unique index on (user_id, open_attendance_date), a double
+ * check-out by a row lock.
  *
  * Every moment recorded here is the server's. The browser sends
  * coordinates and accuracy, never a time and never a distance.
@@ -47,14 +60,9 @@ final readonly class AttendanceWorkflow
             // could file a 00:00:00 check-in under the previous day.
             $now = $this->calendar->now();
             $today = $now->startOfDay();
-            $existing = $this->attendanceOn($user, $today);
 
-            if ($existing instanceof Attendance) {
-                throw new AttendanceRejectedException(
-                    $existing->isOpen()
-                        ? AttendanceRejectionReason::AlreadyCheckedIn
-                        : AttendanceRejectionReason::AlreadyCheckedOut,
-                );
+            if ($this->openSessionOn($user, $today) instanceof Attendance) {
+                throw new AttendanceRejectedException(AttendanceRejectionReason::AlreadyCheckedIn);
             }
 
             $verification = $this->verifiedLocation($reading);
@@ -78,19 +86,24 @@ final readonly class AttendanceWorkflow
     {
         return $this->attempt(AttendanceAction::CheckOut, $user, $reading, function () use ($user, $reading): Attendance {
             $now = $this->calendar->now();
-            $attendance = $this->lockedAttendanceOn($user, $now->startOfDay());
+            $today = $now->startOfDay();
+            $session = $this->lockedOpenSessionOn($user, $today);
 
-            if (! $attendance instanceof Attendance) {
-                throw new AttendanceRejectedException(AttendanceRejectionReason::NotCheckedIn);
-            }
-
-            if (! $attendance->isOpen()) {
-                throw new AttendanceRejectedException(AttendanceRejectionReason::AlreadyCheckedOut);
+            if (! $session instanceof Attendance) {
+                // Nothing open today. Which sentence the employee reads
+                // depends on whether they have been here at all today: a
+                // completed session means they simply already left, no
+                // session at all means there is nothing to close.
+                throw new AttendanceRejectedException(
+                    $this->hasSessionOn($user, $today)
+                        ? AttendanceRejectionReason::AlreadyCheckedOut
+                        : AttendanceRejectionReason::NotCheckedIn,
+                );
             }
 
             $verification = $this->verifiedLocation($reading);
 
-            $attendance->forceFill([
+            $session->forceFill([
                 'check_out_at' => $now,
                 'check_out_latitude' => $reading->coordinates->latitude,
                 'check_out_longitude' => $reading->coordinates->longitude,
@@ -98,7 +111,7 @@ final readonly class AttendanceWorkflow
                 'check_out_distance_from_company' => $verification->roundedDistance(),
             ])->save();
 
-            return $attendance;
+            return $session;
         });
     }
 
@@ -120,8 +133,9 @@ final readonly class AttendanceWorkflow
 
             return DB::transaction($operation);
         } catch (UniqueConstraintViolationException) {
-            // A concurrent request created today's row between our lock
-            // attempt and our insert. It is the same rule, decided by the
+            // A concurrent request opened today's session between our read
+            // and our insert, and attendances_one_open_session_per_day
+            // refused the second one. It is the same rule, decided by the
             // database instead of the code.
             $rejection = new AttendanceRejectedException(AttendanceRejectionReason::AlreadyCheckedIn);
         } catch (AttendanceRejectedException $rejection) {
@@ -148,35 +162,45 @@ final readonly class AttendanceWorkflow
     }
 
     /**
-     * Today's row for a check-in, read WITHOUT a lock.
+     * Today's open session for a check-in, read WITHOUT a lock.
      *
      * A locking read for a row that does not exist takes a gap lock on the
      * unique index, and at eight o'clock every employee's check-in would
      * lock the same gaps and deadlock each other's inserts. The unique
-     * index on (user_id, attendance_date) settles a genuine double
+     * index on (user_id, open_attendance_date) settles a genuine double
      * check-in on its own; attempt() turns that into the ordinary
      * "already checked in" answer.
      */
-    private function attendanceOn(User $user, CarbonInterface $date): ?Attendance
+    private function openSessionOn(User $user, CarbonInterface $date): ?Attendance
     {
         return Attendance::query()
-            ->where('user_id', $user->id)
+            ->forUser($user)
             ->forDate($date)
+            ->open()
             ->first();
     }
 
     /**
-     * Today's row for a check-out, locked. The row exists, so this is a
-     * record lock only: two simultaneous check-outs queue on it and the
-     * second one finds the record already closed.
+     * Today's open session for a check-out, locked. The row exists, so this
+     * is a record lock only: two simultaneous check-outs queue on it and the
+     * second one finds nothing open left to close.
      */
-    private function lockedAttendanceOn(User $user, CarbonInterface $date): ?Attendance
+    private function lockedOpenSessionOn(User $user, CarbonInterface $date): ?Attendance
     {
         return Attendance::query()
-            ->where('user_id', $user->id)
+            ->forUser($user)
             ->forDate($date)
+            ->open()
             ->lockForUpdate()
             ->first();
+    }
+
+    private function hasSessionOn(User $user, CarbonInterface $date): bool
+    {
+        return Attendance::query()
+            ->forUser($user)
+            ->forDate($date)
+            ->exists();
     }
 
     private function recordRejection(

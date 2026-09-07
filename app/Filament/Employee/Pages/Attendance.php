@@ -8,12 +8,14 @@ use App\Enums\AttendanceAction;
 use App\Enums\AttendanceStatus;
 use App\Exceptions\Attendance\AttendanceRejectedException;
 use App\Filament\Employee\Widgets\AttendanceHistoryWidget;
-use App\Models\Attendance as AttendanceRecord;
 use App\Models\AttendanceSetting;
 use App\Models\User;
 use App\Services\Attendance\AttendanceCalendar;
+use App\Services\Attendance\AttendanceDaySummary;
 use App\Services\Attendance\AttendanceWorkflow;
+use App\Services\Attendance\PresencePingRecorder;
 use App\Services\Geolocation\LocationReadingValidator;
+use App\Support\Attendance\SessionDuration;
 use App\Support\Geo\Meters;
 use Carbon\CarbonImmutable;
 use DanHarrin\LivewireRateLimiting\Exceptions\TooManyRequestsException;
@@ -26,7 +28,13 @@ use Filament\Widgets\Widget;
 use Illuminate\Validation\ValidationException;
 
 /**
- * The employee's one screen: today's status, Check In, Check Out, history.
+ * The employee's one screen: today's sessions, Check In, Check Out, history.
+ *
+ * A day is a list of sessions rather than a single pair of times, because an
+ * employee who leaves at noon checks out and checks in again on their
+ * return. The screen therefore says what state they are in now, what the day
+ * has held so far, and how long they have been inside; the two buttons
+ * follow the rule the workflow enforces, one of them available at a time.
  *
  * Answers the panel root the way Filament's Dashboard does, so signing in
  * lands here with nothing to navigate. The browser hands over three numbers
@@ -38,6 +46,18 @@ final class Attendance extends Page
 {
     use WithRateLimiting;
 
+    /**
+     * The presence-ping throttle: attempts, and the window they are counted
+     * in. Generous on purpose and separate from the check-in allowance -
+     * the page pings once per configured interval (five minutes by
+     * default), so twenty in five minutes leaves room for reloads, a second
+     * tab and a retry after a lost connection, while a script posting every
+     * second is refused within twenty of them.
+     */
+    private const int PING_ATTEMPTS = 20;
+
+    private const int PING_WINDOW_SECONDS = 300;
+
     protected static ?string $slug = 'attendance';
 
     protected static bool $shouldRegisterNavigation = false;
@@ -47,6 +67,17 @@ final class Attendance extends Page
     public ?string $feedbackMessage = null;
 
     public string $feedbackStatus = 'info';
+
+    /**
+     * Whether a session is open right now, published to the browser so the
+     * ping loop knows when to run and when to stop.
+     *
+     * A synchronised property rather than an event: Livewire snapshots the
+     * component after every render, so the browser learns that a session
+     * opened or closed on the same round trip that changed it, and the two
+     * features stay independent of each other.
+     */
+    public bool $sessionIsOpen = false;
 
     public static function getRoutePath(Panel $panel): string
     {
@@ -83,6 +114,39 @@ final class Attendance extends Page
     }
 
     /**
+     * One presence ping: where the device says it is, while a session is
+     * open.
+     *
+     * Silent by design. A ping is a supporting observation the employee did
+     * not ask for, so nothing it does - being throttled, arriving malformed,
+     * or finding no open session to belong to - may put a message on the
+     * screen, disable a button or stand between the employee and the two
+     * that matter. It records what it can and says nothing.
+     *
+     * The throttle is its own bucket (the key is built from the method
+     * name), so a day of pings never spends the check-in allowance and a
+     * flood of pings never locks an employee out of checking in.
+     *
+     * @param  array<string, mixed>  $reading
+     */
+    public function ping(array $reading): void
+    {
+        try {
+            $this->rateLimit(self::PING_ATTEMPTS, decaySeconds: self::PING_WINDOW_SECONDS, method: 'ping');
+        } catch (TooManyRequestsException) {
+            return;
+        }
+
+        try {
+            $location = app(LocationReadingValidator::class)->validate($reading);
+        } catch (ValidationException) {
+            return;
+        }
+
+        app(PresencePingRecorder::class)->record($this->employee(), $location);
+    }
+
+    /**
      * @return array<class-string<Widget>>
      */
     protected function getFooterWidgets(): array
@@ -100,28 +164,63 @@ final class Attendance extends Page
         $employee = $this->employee();
         $today = app(AttendanceCalendar::class)->today();
         $settings = AttendanceSetting::current();
+        $day = AttendanceDaySummary::forEmployee($employee, $today);
 
-        $attendance = AttendanceRecord::query()
-            ->where('user_id', $employee->id)
-            ->forDate($today)
-            ->first();
+        // The badge reports the last thing that happened: inside while a
+        // session is open, otherwise checked out once the day holds one,
+        // otherwise not checked in yet. Today's sessions can only be open
+        // or closed - "missing check-out" belongs to earlier days and never
+        // reaches this screen.
+        $status = $day->latestSession()?->status();
 
-        // Today's record can only be open or closed; "missing check-out"
-        // belongs to earlier days and never reaches this screen.
-        $status = $attendance?->status();
+        // The one query that produced the day also decides whether the
+        // browser should be pinging, so the buttons and the ping loop can
+        // never disagree about whether a session is open.
+        $this->sessionIsOpen = $day->isCheckedIn();
 
         return [
             'employeeName' => $employee->name,
             'todayLabel' => $today->locale(app()->getLocale())->isoFormat('dddd, D MMMM YYYY'),
             'stateLabel' => __('attendance.page.status.'.($status instanceof AttendanceStatus ? $status->value : 'not_checked_in')),
             'stateColor' => $status instanceof AttendanceStatus ? $status->color() : 'gray',
-            'checkInTime' => $this->formatTime($attendance?->check_in_at),
-            'checkOutTime' => $this->formatTime($attendance?->check_out_at),
+            'sessions' => $this->sessionRows($day),
+            'sessionCount' => (string) $day->sessionCount(),
+            'totalInside' => SessionDuration::format($day->secondsInside()),
             'isLocationConfigured' => $settings->isConfigured(),
             'radiusMeters' => $settings->radius_meters,
-            'canCheckIn' => $settings->isConfigured() && ! $attendance instanceof AttendanceRecord,
-            'canCheckOut' => $settings->isConfigured() && $attendance instanceof AttendanceRecord && $attendance->isOpen(),
+            // Coming back after a check-out is the point of the feature;
+            // only a session still open stands in the way of a check-in.
+            'canCheckIn' => $settings->isConfigured() && ! $day->isCheckedIn(),
+            'canCheckOut' => $settings->isConfigured() && $day->isCheckedIn(),
+            // Milliseconds, because that is what the browser's timers take.
+            'pingIntervalMs' => ((int) config('attendance.ping_interval_seconds')) * 1000,
         ];
+    }
+
+    /**
+     * Today's sessions as the view reads them: numbered in the order they
+     * happened, with every time already formatted in the attendance
+     * timezone, so the template only prints.
+     *
+     * @return list<array{number: int, checkIn: string, checkOut: string, duration: string}>
+     */
+    private function sessionRows(AttendanceDaySummary $day): array
+    {
+        $rows = [];
+        $number = 0;
+
+        foreach ($day->sessions() as $session) {
+            $number++;
+
+            $rows[] = [
+                'number' => $number,
+                'checkIn' => $this->formatTime($session->check_in_at),
+                'checkOut' => $this->formatTime($session->check_out_at),
+                'duration' => SessionDuration::format($session->durationInSeconds()),
+            ];
+        }
+
+        return $rows;
     }
 
     /**

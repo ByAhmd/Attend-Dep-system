@@ -14,6 +14,7 @@ use App\Models\Attendance;
 use App\Models\AttendanceRejection;
 use App\Models\AttendanceSetting;
 use App\Models\User;
+use App\Services\Attendance\AttendanceCalendar;
 use App\Services\Attendance\AttendanceWorkflow;
 use App\Support\Geo\LocationReading;
 use Carbon\Carbon;
@@ -25,6 +26,10 @@ use Tests\TestCase;
 
 /**
  * Check-in through AttendanceWorkflow, the only writer of attendance.
+ *
+ * A row is one session. Check-in is refused only while a session of the
+ * employee's is still open TODAY: sessions already closed today are not in
+ * the way, and neither is one left open on an earlier day.
  *
  * The clock is frozen at a Riyadh wall-clock moment before every test, so
  * "today" and every stored timestamp are known exactly. Readings are
@@ -128,7 +133,7 @@ final class CheckInTest extends TestCase
     }
 
     #[Test]
-    public function a_second_check_in_on_the_same_day_is_rejected_and_leaves_one_row(): void
+    public function a_second_check_in_while_a_session_is_open_is_refused(): void
     {
         $this->workflow->checkIn($this->employee, $this->readingAtCompany());
 
@@ -141,16 +146,65 @@ final class CheckInTest extends TestCase
     }
 
     #[Test]
-    public function a_check_in_after_checking_out_the_same_day_is_rejected(): void
+    public function a_second_session_is_allowed_after_checking_out_the_same_day(): void
     {
-        $this->checkedOut($this->employee);
+        // Leaving at noon and coming back at one is the whole point: the
+        // return is a check-in like any other, verified by the geofence,
+        // and it opens a second session on the same attendance day.
+        $morning = $this->attendanceSession($this->employee, '08:00', '12:30');
+        $this->freezeRiyadhClock('2026-09-02 13:05:00');
 
-        $rejection = $this->expectRejection(
-            fn (): Attendance => $this->workflow->checkIn($this->employee, $this->readingAtCompany()),
-        );
+        $afternoon = $this->workflow->checkIn($this->employee, $this->readingMetersFromCompany(40.0));
 
-        $this->assertSame(AttendanceRejectionReason::AlreadyCheckedOut, $rejection->reason);
-        $this->assertDatabaseCount('attendances', 1);
+        $this->assertDatabaseCount('attendances', 2);
+        $this->assertNotSame($morning->id, $afternoon->id);
+        $this->assertSame('2026-09-02', $afternoon->attendance_date->toDateString());
+        $this->assertSame('2026-09-02 13:05:00', $afternoon->check_in_at->toDateTimeString());
+        $this->assertSame(AttendanceStatus::CheckedIn, $afternoon->status());
+
+        // The session that was closed at noon is untouched.
+        $stored = $morning->fresh();
+
+        $this->assertInstanceOf(Attendance::class, $stored);
+        $this->assertFalse($stored->isOpen());
+        $this->assertSame('2026-09-02 12:30:00', $stored->check_out_at?->toDateTimeString());
+    }
+
+    #[Test]
+    public function a_third_session_is_allowed_after_the_second_is_closed(): void
+    {
+        $this->attendanceSession($this->employee, '08:00', '10:00');
+        $this->attendanceSession($this->employee, '11:00', '13:00');
+        $this->freezeRiyadhClock('2026-09-02 14:00:00');
+
+        $third = $this->workflow->checkIn($this->employee, $this->readingAtCompany());
+
+        $this->assertDatabaseCount('attendances', 3);
+        $this->assertTrue($third->isOpen());
+        $this->assertSame(3, Attendance::query()->forUser($this->employee)->count());
+    }
+
+    #[Test]
+    public function an_open_session_from_yesterday_does_not_block_todays_check_in(): void
+    {
+        // The forgotten check-out stays forgotten - it is evidence of a day
+        // that was never closed - but it is not a reason to refuse someone
+        // standing at the door this morning.
+        $yesterday = app(AttendanceCalendar::class)->today()->subDay();
+        $forgotten = $this->checkedIn($this->employee, $yesterday);
+
+        $today = $this->workflow->checkIn($this->employee, $this->readingAtCompany());
+
+        $this->assertDatabaseCount('attendances', 2);
+        $this->assertSame('2026-09-02', $today->attendance_date->toDateString());
+        $this->assertSame(AttendanceStatus::CheckedIn, $today->status());
+
+        $stored = $forgotten->fresh();
+
+        $this->assertInstanceOf(Attendance::class, $stored);
+        $this->assertTrue($stored->isOpen());
+        $this->assertSame($yesterday->toDateString(), $stored->attendance_date->toDateString());
+        $this->assertSame(AttendanceStatus::MissingCheckOut, $stored->status());
     }
 
     #[Test]

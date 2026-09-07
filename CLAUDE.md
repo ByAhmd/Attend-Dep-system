@@ -60,17 +60,26 @@ app/Support/Geo/           Coordinates, LocationReading (validated value objects
                            GoogleMapsLink (map URL for a stored position)
 app/Support/Filament/      PanelAccess — which panel a user may enter;
                            LanguageMenuItems — the language entry of the user menu
+app/Support/Attendance/    SessionDuration — hours and minutes, as Meters is for distance
 app/Data/Attendance/       LocationVerification — the backend verdict on one reading
 app/Services/Geolocation/  DistanceCalculator (haversine), LocationReadingValidator
 app/Services/Attendance/   AttendanceCalendar, LocationVerifier, AttendanceWorkflow,
-                           AttendanceDashboardMetrics
+                           AttendanceDashboardMetrics, AttendanceDaySummary (one
+                           employee's day as its sessions), PresencePingRecorder
+app/Services/Users/        EmployeeInvitationService + Invitation (url, emailed)
+app/Notifications/         EmployeeInvitationNotification
+app/Listeners/             ActivateInvitedEmployee — Pending becomes Active on first
+                           password set; discovered automatically from app/Listeners
 app/Exceptions/Attendance/ AttendanceRejectedException (reason enum + verification)
-app/Models/                User, Attendance, AttendanceRejection, AttendanceSetting
+app/Models/                User, Attendance (one SESSION), AttendanceRejection,
+                           AttendanceSetting, PresencePing
 app/Policies/              one per model; employees never write attendance
 app/Http/Middleware/       EnsureAccountIsActive (signs out deactivated accounts),
                            SetLocale (applies the language cookie; persistent for Livewire)
 app/Http/Controllers/      SwitchLocaleController — GET /locale/{ar|en}, the only web route
 app/Console/Commands/      CreateAdminCommand (app:create-admin — the first administrator)
+app/Filament/Auth/         ResetPassword — the stock page admits a Pending account so an
+                           invitation can be accepted; Inactive is still refused
 app/Filament/Resources/    admin resources: <Name>Resource + Schemas/ + Tables/ + Pages/
                            (+ Actions/ for actions shared by a table and an edit page)
 app/Filament/Pages|Widgets admin dashboard
@@ -88,14 +97,24 @@ The Filament layer validates input (`LocationReadingValidator`), calls
 
 ## 3. Business rules (immutable)
 
-- Attendance period = one calendar day in Asia/Riyadh. One `attendances` row per
-  employee per day, enforced by `unique(user_id, attendance_date)`.
-- **Check-in** requires: active account, no record today, reading accuracy ≤
-  `attendance.max_accuracy_meters`, distance ≤ configured radius (inclusive, compared at
-  centimetre precision).
-- **Check-out** requires: today's record exists and is open, then the same location test.
-- A record left open on an earlier day is shown as *Missing check-out* and is never
+- Attendance period = one calendar day in Asia/Riyadh. One `attendances` row is one
+  **session**, and a day may hold several: an employee who leaves checks out and checks
+  in again on return, so time inside and outside is visible. At most one **open** session
+  per employee per day, enforced by `unique(user_id, open_attendance_date)` on a virtual
+  column carrying `attendance_date` only while `check_out_at` is NULL. The application
+  never reads or writes that column; it exists to carry the index.
+- **Check-in** requires: active account, no open session today (sessions already closed
+  today do not block it, and neither does a session left open on an earlier day), reading
+  accuracy ≤ `attendance.max_accuracy_meters`, distance ≤ configured radius (inclusive,
+  compared at centimetre precision).
+- **Check-out** requires: an open session today, then the same location test.
+- A session left open on an earlier day is shown as *Missing check-out* and is never
   closed automatically.
+- **Presence pings** are recorded only while a session is open and only while the page is
+  open and the phone awake. They are supporting evidence, never proof of absence, and no
+  interface may imply otherwise. A gap means nothing on its own.
+- Employees set their own password through an invitation. A new account is **Pending**
+  with a NULL password until its owner follows the link; Pending cannot sign in.
 - The browser sends **only latitude, longitude, accuracy**. The server computes the
   distance, stamps the time, and stores what it saw. Client distance is feedback only.
 - Rejections for `insufficient_accuracy` / `outside_allowed_area` are recorded in

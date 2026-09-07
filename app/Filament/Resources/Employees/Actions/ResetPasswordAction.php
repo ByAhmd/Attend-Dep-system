@@ -18,6 +18,12 @@ use Filament\Support\Icons\Heroicon;
  * password twice in a modal of its own, so a password is never overwritten
  * as a side effect of saving something else. The model's hashed cast does
  * the hashing; nothing here sees the hash.
+ *
+ * It stays, invitations or not: an employee who loses their password on a
+ * deployment with no outbound mail still needs a way back in. It is offered
+ * for an account that has one to lose - an account still waiting for its
+ * invitation is served by the invitation actions, and giving it a password
+ * here would leave it pending and unable to sign in with it.
  */
 final class ResetPasswordAction
 {
@@ -47,7 +53,8 @@ final class ResetPasswordAction
                     ->revealable()
                     ->required(),
             ])
-            ->visible(fn (User $record): bool => EmployeeResource::canManageAccess($record))
+            ->visible(fn (User $record): bool => EmployeeResource::canManageAccess($record)
+                && ! $record->status->isPending())
             ->action(function (array $data, User $record): void {
                 $record->forceFill(['password' => $data['password']])->save();
 

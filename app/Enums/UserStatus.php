@@ -9,11 +9,16 @@ namespace App\Enums;
  *
  * Accounts are switched off, never deleted: an employee who leaves keeps their
  * attendance history and the rows that reference them stay intact.
+ *
+ * A newly created account starts Pending: it exists, it has no password, and
+ * it becomes Active the moment its owner follows the invitation and chooses
+ * one. Until then it is as locked out as a deactivated account.
  */
 enum UserStatus: string
 {
     case Active = 'active';
     case Inactive = 'inactive';
+    case Pending = 'pending';
 
     public function label(): string
     {
@@ -28,6 +33,17 @@ enum UserStatus: string
     public function canAuthenticate(): bool
     {
         return $this === self::Active;
+    }
+
+    /**
+     * Whether the account is still waiting for its owner to set a password.
+     *
+     * Asked wherever the interface has to choose between the invitation flow
+     * and the ordinary account controls, so "invited" is spelled one way.
+     */
+    public function isPending(): bool
+    {
+        return $this === self::Pending;
     }
 
     /**
