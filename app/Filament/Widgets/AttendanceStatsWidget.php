@@ -19,6 +19,15 @@ final class AttendanceStatsWidget extends StatsOverviewWidget
     protected int|string|array $columnSpan = 'full';
 
     /**
+     * Rendered with the dashboard, not fetched afterwards.
+     *
+     * Deferred by default, which meant the dashboard arrived with no figures
+     * on it and then asked the server again. The five counts are indexed and
+     * trivial, so the extra request cost more than the work it deferred.
+     */
+    protected static bool $isLazy = false;
+
+    /**
      * @return array<int, Stat>
      */
     protected function getStats(): array

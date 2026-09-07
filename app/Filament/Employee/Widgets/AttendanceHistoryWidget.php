@@ -32,6 +32,17 @@ final class AttendanceHistoryWidget extends TableWidget
 {
     protected int|string|array $columnSpan = 'full';
 
+    /**
+     * Rendered with the page, not fetched afterwards.
+     *
+     * Filament defers a widget by default, which costs a second HTTP request
+     * once the page has painted. That trade is worth it for a widget whose
+     * query is slow; this one is a single indexed lookup of ten rows, so the
+     * round trip costs far more than the query it defers - and it is paid on
+     * a phone, on mobile data, every time an employee opens the screen.
+     */
+    protected static bool $isLazy = false;
+
     public function table(Table $table): Table
     {
         return $table
