@@ -277,6 +277,58 @@ Then create employees under **Employees**, give each their password, and send th
 site URL. On first use the phone asks for location permission; employees should allow it
 and enable precise location (GPS).
 
+## 10a. Deploying automatically on every push
+
+Once the manual deployment above works, GitHub Actions can do it for you. The `deploy` job
+in `.github/workflows/ci.yml` runs **only** after lint, static analysis and the whole test
+suite have passed on both PHP 8.3 and 8.4, and only for a push to `master`. It signs in
+over SSH, resets the checkout to `origin/master` and runs `scripts/deploy.sh` — the same
+command a person would run. It stays switched off until you configure it.
+
+**1. Make a key pair for the robot** (on your own machine, no passphrase, because a
+robot cannot type one):
+
+```bash
+ssh-keygen -t ed25519 -C "github-actions" -f deploy_key -N ""
+```
+
+That writes `deploy_key` (private) and `deploy_key.pub` (public).
+
+**2. Let the key into the server.** In hPanel go to Advanced, SSH Access, SSH keys, and
+paste the contents of `deploy_key.pub`. Test it before going further:
+
+```bash
+ssh -i deploy_key -p <port> <user>@<host> "echo ok"
+```
+
+**3. Tell GitHub.** In the repository, Settings, Secrets and variables, Actions:
+
+| Kind | Name | Value |
+|---|---|---|
+| Secret | `SSH_HOST` | the server address from hPanel |
+| Secret | `SSH_USER` | your `uXXXXXXXXX` username |
+| Secret | `SSH_PORT` | the port from hPanel, usually 65002 |
+| Secret | `SSH_PRIVATE_KEY` | the whole contents of `deploy_key`, including the BEGIN and END lines |
+| Secret | `DEPLOY_PATH` | e.g. `/home/uXXXXXXXXX/domains/main.com/app` |
+| Variable | `DEPLOY_ENABLED` | `true` |
+| Variable | `HEALTH_URL` | optional, e.g. `https://sub.main.com/up` |
+
+Delete `deploy_key` from your machine afterwards; the server and GitHub both have what
+they need.
+
+**4. Push something.** The Actions tab shows the tests, then the deployment, then a check
+that the site answers. If `HEALTH_URL` is set and the site does not respond, the run turns
+red so you find out immediately rather than from an employee.
+
+To switch it off again, set `DEPLOY_ENABLED` to anything other than `true`. Deployments
+never overlap and are never cancelled part-way, because interrupting a migration is worse
+than waiting.
+
+**Know what you are turning on.** Every green push changes the live site, and that includes
+running new migrations against real attendance data. The test suite is what stands between
+a mistake and production, so keep it honest, and keep Hostinger's automatic database
+backups switched on.
+
 ## 11. Updating
 
 ```bash
