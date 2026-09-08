@@ -34,4 +34,34 @@ return [
         'insufficient_accuracy' => 'Insufficient location accuracy',
         'outside_allowed_area' => 'Outside the allowed area',
     ],
+
+    'employment_type' => [
+        'employee' => 'Employee',
+        'intern' => 'Intern',
+    ],
+
+    'request_status' => [
+        'pending' => 'Under review',
+        'approved' => 'Approved',
+        'rejected' => 'Rejected',
+    ],
+
+    'correction_reason' => [
+        'forgot_to_record' => 'Forgot to check in or out',
+        'location_problem' => 'The location could not be determined',
+        'application_problem' => 'A problem with the application',
+        'connection_problem' => 'The internet connection dropped',
+        'remote_work' => 'Working remotely',
+        'external_visit' => 'A visit to an external site',
+        'overtime_after_check_out' => 'Extra work after checking out',
+    ],
+
+    'leave_type' => [
+        'annual' => 'Annual leave',
+        'sick' => 'Sick leave',
+        'exam' => 'Examination leave',
+        'bereavement_immediate' => 'Bereavement — spouse, parent or child',
+        'bereavement_sibling' => 'Bereavement — sibling',
+        'unpaid' => 'Unpaid leave',
+    ],
 ];

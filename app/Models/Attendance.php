@@ -26,27 +26,53 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * open_attendance_date generated column, which nothing here writes or
  * reads: it exists only to carry that unique index).
  *
- * Written only by AttendanceWorkflow. Every timestamp is the server's; every
- * coordinate, accuracy and distance is what the server saw and computed at
- * the moment of the decision, kept so the record can be audited later.
- * Nothing edits a row after check-out - there is no interface for it and
- * the policies deny it - because an attendance record that can be edited is
- * not evidence of attendance.
+ * Written by AttendanceWorkflow and amended by exactly one other thing:
+ * AttendanceCorrectionWorkflow, acting on a request an administrator
+ * approved. Every timestamp is the server's; every coordinate, accuracy and
+ * distance is what the server saw and computed at the moment of the
+ * decision, kept so the record can be audited later. No interface edits a
+ * row - there is none, and the policies deny every write - because an
+ * attendance record that can be edited is not evidence of attendance.
+ *
+ * A correction never erases what the device said. check_in_at and
+ * check_out_at go on holding the effective moment, so every screen and
+ * every total reads one column; the moment the device recorded moves into
+ * original_check_in_at / original_check_out_at first, and the correction id
+ * beside it names the request that did it. The coordinates, accuracy and
+ * distance are never rewritten - they describe the moment the device saw,
+ * and attaching them to a corrected time would turn a measurement into a
+ * claim about an instant nothing measured.
+ *
+ * The four check-in geo columns are therefore nullable now: a session
+ * created wholly by a correction has no reading at all, and the database
+ * allows that only where a correction id explains it.
+ *
+ * The two archive columns and the two correction ids are outside
+ * #[Fillable], exactly as open_attendance_date is. Only the correction
+ * workflow reaches them, and it does so through forceFill() /
+ * forceCreate(), so no payload anywhere can archive a moment, un-archive
+ * one, or claim that a time was corrected when it was not.
  *
  * @property int $id
  * @property int $user_id
  * @property CarbonImmutable $attendance_date
  * @property CarbonImmutable $check_in_at
- * @property string $check_in_latitude
- * @property string $check_in_longitude
- * @property string $check_in_accuracy
- * @property string $check_in_distance_from_company
+ * @property ?string $check_in_latitude
+ * @property ?string $check_in_longitude
+ * @property ?string $check_in_accuracy
+ * @property ?string $check_in_distance_from_company
  * @property ?CarbonImmutable $check_out_at
  * @property ?string $check_out_latitude
  * @property ?string $check_out_longitude
  * @property ?string $check_out_accuracy
  * @property ?string $check_out_distance_from_company
+ * @property ?CarbonImmutable $original_check_in_at
+ * @property ?CarbonImmutable $original_check_out_at
+ * @property ?int $check_in_correction_id
+ * @property ?int $check_out_correction_id
  * @property-read User $user
+ * @property-read ?AttendanceCorrection $checkInCorrection
+ * @property-read ?AttendanceCorrection $checkOutCorrection
  */
 #[Fillable([
     'user_id', 'attendance_date',
@@ -75,6 +101,8 @@ final class Attendance extends Model
             'check_out_longitude' => 'decimal:7',
             'check_out_accuracy' => 'decimal:2',
             'check_out_distance_from_company' => 'decimal:2',
+            'original_check_in_at' => 'immutable_datetime',
+            'original_check_out_at' => 'immutable_datetime',
         ];
     }
 
@@ -132,8 +160,86 @@ final class Attendance extends Model
             : AttendanceStatus::MissingCheckOut;
     }
 
-    public function checkInCoordinates(): Coordinates
+    /**
+     * The request that amended the check-in, if one did.
+     *
+     * @return BelongsTo<AttendanceCorrection, $this>
+     */
+    public function checkInCorrection(): BelongsTo
     {
+        return $this->belongsTo(AttendanceCorrection::class, 'check_in_correction_id');
+    }
+
+    /**
+     * @return BelongsTo<AttendanceCorrection, $this>
+     */
+    public function checkOutCorrection(): BelongsTo
+    {
+        return $this->belongsTo(AttendanceCorrection::class, 'check_out_correction_id');
+    }
+
+    public function isCheckInCorrected(): bool
+    {
+        return $this->check_in_correction_id !== null;
+    }
+
+    public function isCheckOutCorrected(): bool
+    {
+        return $this->check_out_correction_id !== null;
+    }
+
+    /**
+     * Corrected-ness is a second axis beside the session's status: a
+     * session can be checked out AND corrected, and a missing check-out is
+     * the row most likely to have been corrected of all.
+     */
+    public function isCorrected(): bool
+    {
+        return $this->isCheckInCorrected() || $this->isCheckOutCorrected();
+    }
+
+    public function hasDeviceCheckIn(): bool
+    {
+        return $this->check_in_latitude !== null;
+    }
+
+    public function hasDeviceCheckOut(): bool
+    {
+        return $this->check_out_latitude !== null;
+    }
+
+    /**
+     * What the device recorded for the check-in, or null where it recorded
+     * nothing at all.
+     *
+     * An uncorrected moment IS the device's moment, so there is nothing
+     * archived to read; a corrected one has its original beside it, and
+     * that original is NULL precisely when the correction invented the
+     * moment rather than moving one.
+     */
+    public function deviceCheckInAt(): ?CarbonImmutable
+    {
+        return $this->isCheckInCorrected() ? $this->original_check_in_at : $this->check_in_at;
+    }
+
+    public function deviceCheckOutAt(): ?CarbonImmutable
+    {
+        return $this->isCheckOutCorrected() ? $this->original_check_out_at : $this->check_out_at;
+    }
+
+    /**
+     * Where the device was at check-in, or null when it never said.
+     *
+     * Nullable since a correction may supply a moment with no reading
+     * behind it. Every caller has to decide what to do with the absence -
+     * a map link to nowhere is worse than no map link.
+     */
+    public function checkInCoordinates(): ?Coordinates
+    {
+        if ($this->check_in_latitude === null || $this->check_in_longitude === null) {
+            return null;
+        }
+
         return new Coordinates((float) $this->check_in_latitude, (float) $this->check_in_longitude);
     }
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\EmploymentType;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Models\Scopes\AccountSoftDeletingScope;
@@ -14,7 +15,9 @@ use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -40,9 +43,14 @@ use Illuminate\Support\Str;
  * @property string $email
  * @property UserRole $role
  * @property UserStatus $status
+ * @property EmploymentType $employment_type
+ * @property ?int $job_title_id
  * @property CarbonInterface|null $deleted_at
+ * @property-read ?JobTitle $jobTitle
+ * @property-read Collection<int, AttendanceCorrection> $attendanceCorrections
+ * @property-read Collection<int, LeaveRequest> $leaveRequests
  */
-#[Fillable(['name', 'email', 'password', 'role', 'status'])]
+#[Fillable(['name', 'email', 'password', 'role', 'status', 'employment_type', 'job_title_id'])]
 #[Hidden(['password', 'remember_token'])]
 final class User extends Authenticatable implements FilamentUser
 {
@@ -51,6 +59,22 @@ final class User extends Authenticatable implements FilamentUser
 
     use Notifiable;
     use SoftDeletes;
+
+    /**
+     * The column default, repeated where a new instance can see it.
+     *
+     * `employment_type` is NOT NULL with a database default, and a database
+     * default only ever reaches the row: the model that wrote it still has
+     * no such attribute until somebody re-reads it. Every account is an
+     * ordinary employee unless it says otherwise, so the model says so from
+     * the moment it is built, and the caption above a name reads the same
+     * before and after the round trip.
+     *
+     * @var array<string, mixed>
+     */
+    protected $attributes = [
+        'employment_type' => EmploymentType::Employee->value,
+    ];
 
     /**
      * The soft-delete scope this model boots is the one that never hides
@@ -78,6 +102,7 @@ final class User extends Authenticatable implements FilamentUser
             'password' => 'hashed',
             'role' => UserRole::class,
             'status' => UserStatus::class,
+            'employment_type' => EmploymentType::class,
         ];
     }
 
@@ -95,6 +120,55 @@ final class User extends Authenticatable implements FilamentUser
     public function attendanceRejections(): HasMany
     {
         return $this->hasMany(AttendanceRejection::class);
+    }
+
+    /**
+     * @return BelongsTo<JobTitle, $this>
+     */
+    public function jobTitle(): BelongsTo
+    {
+        return $this->belongsTo(JobTitle::class);
+    }
+
+    /**
+     * @return HasMany<AttendanceCorrection, $this>
+     */
+    public function attendanceCorrections(): HasMany
+    {
+        return $this->hasMany(AttendanceCorrection::class);
+    }
+
+    /**
+     * @return HasMany<LeaveRequest, $this>
+     */
+    public function leaveRequests(): HasMany
+    {
+        return $this->hasMany(LeaveRequest::class);
+    }
+
+    /**
+     * The line printed above the person's name: "Marketing intern",
+     * "Marketing", "Intern", or nothing at all.
+     *
+     * Composed and never stored, so renaming a title renames it on every
+     * screen at once, and each language reads in its own word order instead
+     * of in a phrase somebody once froze into a column. The Arabic is
+     * masculine: this system holds no gender and will not begin collecting
+     * one for the sake of a caption.
+     *
+     * Neither half of this is a permission. An intern signs in, checks in,
+     * and is refused outside the radius exactly as anybody else is.
+     */
+    public function positionLabel(): ?string
+    {
+        $title = $this->jobTitle?->displayName();
+
+        return match (true) {
+            $this->employment_type->isIntern() && $title !== null => __('employees.position.intern_of', ['title' => $title]),
+            $this->employment_type->isIntern() => __('employees.position.intern'),
+            $title !== null => $title,
+            default => null,
+        };
     }
 
     public function canAccessPanel(Panel $panel): bool

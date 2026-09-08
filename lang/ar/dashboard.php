@@ -17,6 +17,10 @@ return [
         'checked_out_today_hint' => 'موظفون أكملوا جلسة اليوم',
         'currently_checked_in' => 'الحاضرون الآن',
         'currently_checked_in_hint' => 'سجّلوا الحضور ولم ينصرفوا بعد',
+        'pending_corrections' => 'طلبات تصحيح بانتظار قرار',
+        'pending_corrections_hint' => 'طلبات لم يُبتّ فيها بعد',
+        'pending_leave' => 'طلبات إجازة بانتظار قرار',
+        'pending_leave_hint' => 'طلبات لم يُبتّ فيها بعد',
     ],
 
     'shortcuts' => [

@@ -23,16 +23,23 @@ use Illuminate\Console\Command;
  * delete an account or appoint an administrator, and the panel simply never
  * offers those buttons. That is worth an exit code, so a deployment check
  * can fail on it instead of somebody discovering it months later.
+ *
+ * That check is what --check is for. An unattended runner needs the exit
+ * code and nothing else, and its output is not a private place.
  */
 final class ShowSuperAdminCommand extends Command
 {
-    protected $signature = 'app:super-admin';
+    protected $signature = 'app:super-admin {--check : Print a verdict only, never an address}';
 
     protected $description = 'Show which account SUPER_ADMIN_EMAIL designates';
 
     public function handle(): int
     {
         $email = User::superAdminEmail();
+
+        if ($this->option('check')) {
+            return $this->verdict($email);
+        }
 
         if ($email === null) {
             $this->components->warn('No super administrator is configured.');
@@ -77,6 +84,36 @@ final class ShowSuperAdminCommand extends Command
             'Nobody can deactivate, demote or delete it - not another administrator, not itself.',
             'Only editing SUPER_ADMIN_EMAIL on the server changes who this is.',
         ]);
+
+        return self::SUCCESS;
+    }
+
+    /**
+     * A verdict with no subject.
+     *
+     * This command's output reaches a build log through scripts/deploy.sh,
+     * and the address it would otherwise print designates the one account
+     * nobody can deactivate, demote or delete. A log is read by more people
+     * than a terminal is, and for longer. The three exit codes are identical
+     * to the verbose form, so the deployment guard is preserved exactly.
+     */
+    private function verdict(?string $email): int
+    {
+        if ($email === null) {
+            $this->line('Super administrator: not configured - no account can be deleted, restored, promoted or demoted.');
+
+            return self::SUCCESS;
+        }
+
+        $exists = User::withTrashed()->whereRaw('LOWER(email) = ?', [$email])->exists();
+
+        if (! $exists) {
+            $this->line('Super administrator: MISCONFIGURED - the configured address names no account.');
+
+            return self::FAILURE;
+        }
+
+        $this->line('Super administrator: configured.');
 
         return self::SUCCESS;
     }

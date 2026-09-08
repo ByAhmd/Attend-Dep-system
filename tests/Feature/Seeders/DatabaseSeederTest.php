@@ -6,6 +6,7 @@ namespace Tests\Feature\Seeders;
 
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Models\JobTitle;
 use App\Models\User;
 use Database\Seeders\DatabaseSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -110,5 +111,42 @@ final class DatabaseSeederTest extends TestCase
         $this->seed(DatabaseSeeder::class);
 
         $this->assertDatabaseCount('attendance_settings', 1);
+    }
+
+    #[Test]
+    public function it_plants_the_starter_job_titles_on_an_empty_table(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+
+        $this->assertDatabaseCount('job_titles', 6);
+        $this->assertDatabaseHas('job_titles', ['name_ar' => 'التسويق', 'name_en' => 'Marketing', 'is_active' => true]);
+        $this->assertDatabaseHas('job_titles', ['name_ar' => 'الموارد البشرية', 'name_en' => 'HR']);
+    }
+
+    #[Test]
+    public function a_second_run_plants_nothing(): void
+    {
+        $this->seed(DatabaseSeeder::class);
+        $this->seed(DatabaseSeeder::class);
+
+        $this->assertDatabaseCount('job_titles', 6);
+    }
+
+    #[Test]
+    public function a_renamed_title_is_not_rewritten_by_a_second_run(): void
+    {
+        // deploy.sh runs db:seed --force on every push. A seeder keyed on
+        // the name would recreate "Marketing" beside the renamed one, and
+        // the owner would be deleting it again after every deployment.
+        $this->seed(DatabaseSeeder::class);
+
+        $marketing = JobTitle::query()->where('name_en', 'Marketing')->firstOrFail();
+        $marketing->forceFill(['name_ar' => 'التسويق والمبيعات', 'name_en' => 'Marketing and Sales'])->save();
+
+        $this->seed(DatabaseSeeder::class);
+
+        $this->assertDatabaseCount('job_titles', 6);
+        $this->assertDatabaseMissing('job_titles', ['name_en' => 'Marketing']);
+        $this->assertDatabaseHas('job_titles', ['id' => $marketing->id, 'name_en' => 'Marketing and Sales']);
     }
 }

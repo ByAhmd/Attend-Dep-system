@@ -108,12 +108,45 @@ composer install --no-dev --optimize-autoloader --no-interaction
 
 ## 5. Storage and permissions
 
-No file uploads exist, so `php artisan storage:link` is **not** needed. The web server
-user must be able to write to `storage/` and `bootstrap/cache/`:
+`php artisan storage:link` is **not** needed: nothing this application stores is public.
+The web server user must be able to write to `storage/` and `bootstrap/cache/`:
 
 ```bash
 chmod -R ug+rwx storage bootstrap/cache
 ```
+
+### Leave attachments
+
+An employee may attach one supporting document — a medical note, an examination timetable
+— to a leave request, and that is the only file anybody uploads. Those files are written to
+
+```
+storage/app/private/leave-attachments/
+```
+
+which is **above the document root**: the web server is pointed at `public/`, and there is
+no symlink, no `url` and no direct address into that directory. A file there is reached
+only through `/leave-requests/{id}/attachment`, which signs the visitor in first and then
+asks the same permission question the screens ask — an employee may read their own
+document, an administrator may read any, and nobody else may read one. Because nothing in
+that directory is ever served by the web server or passed to PHP, a file whose name ends
+`.pdf` and whose bytes are a script sits there inert. The directory is created on the first
+upload; it needs no special permissions beyond the `chmod` above.
+
+**Nothing backs these files up.** The host's automatic backup, if the plan has one, covers
+the database, and a `mysqldump` covers the database as well; neither of them has ever seen
+`storage/`. A leave request whose document is gone still shows who asked for what and what
+was decided, so this is a loss of evidence and not a loss of the record — but it is a real
+loss, and the fix is one line in the same cron job that dumps the database:
+
+```bash
+tar -czf ~/backups/leave-attachments-$(date +%F).tar.gz -C /path/to/app storage/app/private
+```
+
+Keep those archives wherever the database dumps go, and keep them for as long: an attachment
+is only useful beside the request it belongs to. If nobody is going to run that line, say so
+out loud to whoever approves leave, because the alternative is a promise the server is not
+keeping.
 
 ## 6. Migrations
 
@@ -345,6 +378,7 @@ php artisan up
 
 ## 12. Backups
 
-The whole state of the system is the MySQL database (`users`, `attendances`,
-`attendance_rejections`, `attendance_settings`) plus `.env`. A nightly `mysqldump` is a
-complete backup.
+The state of the system is the MySQL database plus `.env` plus the leave attachments in
+`storage/app/private/leave-attachments/`. A nightly `mysqldump` covers the first; nothing
+covers the third unless somebody adds the `tar` line from section 5 beside it. See that
+section for what is lost when nobody does.

@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Tests\Concerns;
 
+use App\Enums\LeaveType;
 use App\Enums\UserStatus;
 use App\Models\Attendance;
+use App\Models\AttendanceCorrection;
 use App\Models\AttendanceSetting;
+use App\Models\JobTitle;
+use App\Models\LeaveRequest;
 use App\Models\User;
 use App\Services\Attendance\AttendanceCalendar;
 use App\Services\Geolocation\DistanceCalculator;
@@ -182,5 +186,88 @@ trait CreatesAttendanceFixtures
         }
 
         return $factory->create();
+    }
+
+    /**
+     * A job title with names a test can assert against.
+     *
+     * Named explicitly rather than left to the factory, whose counter runs
+     * across the whole process: a test that reads what is printed under an
+     * employee's name has to know the word it is looking for.
+     */
+    protected function makeJobTitle(string $ar = 'التسويق', string $en = 'Marketing', bool $active = true): JobTitle
+    {
+        return JobTitle::factory()->create([
+            'name_ar' => $ar,
+            'name_en' => $en,
+            'is_active' => $active,
+        ]);
+    }
+
+    /**
+     * A pending correction request from the employee.
+     *
+     * Giving neither time leaves the factory's whole working day in place;
+     * giving either one means exactly that request, and the other half is
+     * the untouched one. The table refuses a request with no time at all,
+     * so there is no way to write one by accident.
+     */
+    protected function correctionRequest(
+        User $employee,
+        ?Attendance $session = null,
+        ?string $checkIn = null,
+        ?string $checkOut = null,
+        ?CarbonInterface $on = null,
+    ): AttendanceCorrection {
+        $factory = AttendanceCorrection::factory()->for($employee);
+
+        if ($session instanceof Attendance) {
+            $factory = $factory->forSession($session);
+        }
+
+        if ($on instanceof CarbonInterface) {
+            $factory = $factory->on($on);
+        }
+
+        if ($checkIn !== null || $checkOut !== null) {
+            $factory = $factory->state([
+                'requested_check_in_time' => $checkIn,
+                'requested_check_out_time' => $checkOut,
+            ]);
+        }
+
+        return $factory->create();
+    }
+
+    /**
+     * A pending leave request, inclusive at both ends, covering today
+     * unless another period is named.
+     */
+    protected function leaveRequest(
+        User $employee,
+        ?CarbonInterface $from = null,
+        ?CarbonInterface $until = null,
+        LeaveType $type = LeaveType::Annual,
+    ): LeaveRequest {
+        $factory = LeaveRequest::factory()->for($employee)->ofType($type);
+
+        if ($from instanceof CarbonInterface) {
+            $factory = $factory->between($from, $until ?? $from);
+        }
+
+        return $factory->create();
+    }
+
+    /**
+     * How many corrections an employee may ask for this month. Zero
+     * switches correction requests off altogether.
+     */
+    protected function configureCorrectionQuota(int $perMonth): AttendanceSetting
+    {
+        $settings = AttendanceSetting::current();
+
+        $settings->forceFill(['correction_requests_per_month' => $perMonth])->save();
+
+        return $settings;
     }
 }

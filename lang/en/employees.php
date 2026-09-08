@@ -21,6 +21,8 @@ return [
         'new_password' => 'New password',
         'role' => 'Role',
         'status' => 'Status',
+        'employment_type' => 'Employment type',
+        'job_title' => 'Job title',
         'created_at' => 'Created',
         'invitation_link' => 'Invitation link',
     ],
@@ -28,6 +30,12 @@ return [
     'placeholders' => [
         'name' => 'Full name as it should appear in attendance records',
         'email' => 'name@company.com',
+        'job_title' => 'No title',
+    ],
+
+    'position' => [
+        'intern_of' => ':title intern',
+        'intern' => 'Intern',
     ],
 
     'helpers' => [
@@ -38,15 +46,10 @@ return [
         'invitation_on_create' => 'The employee chooses their own password. The account is created awaiting its invitation and can sign in once that password is set.',
         'invitation_link' => 'Send this to the employee. It works once, replaces any earlier link, and expires in :minutes minutes.',
         'pending_status' => 'This account becomes active by itself when the employee sets their password.',
-        'role_super_admin_only' => 'Only the super administrator appoints or removes an administrator.',
+        'role_locked' => 'You cannot change an account\'s role.',
         'deleted_account' => 'This account is deleted. Restore it before changing anything on it.',
-    ],
-
-    'super_admin' => [
-        'badge' => 'Super administrator',
-        'protected' => 'Designated by SUPER_ADMIN_EMAIL on the server. This account cannot be deactivated, demoted or deleted from here.',
-        'role_locked' => 'Decided on the server, not here: this account is an administrator because SUPER_ADMIN_EMAIL names it.',
-        'status_locked' => 'Decided on the server, not here: this account stays active because SUPER_ADMIN_EMAIL names it.',
+        'employment_type' => 'A description of the person, not a permission: an intern and an employee record attendance in exactly the same way.',
+        'job_title' => 'Maintained on the Job titles screen. Only active titles are offered here.',
     ],
 
     'badges' => [
@@ -60,6 +63,8 @@ return [
     'filters' => [
         'role' => 'Role',
         'status' => 'Status',
+        'employment_type' => 'Employment type',
+        'job_title' => 'Job title',
         'trashed' => 'Deleted accounts',
         'trashed_without' => 'Without deleted accounts',
         'trashed_with' => 'With deleted accounts',

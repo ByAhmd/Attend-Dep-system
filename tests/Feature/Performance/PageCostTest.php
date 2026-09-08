@@ -5,10 +5,15 @@ declare(strict_types=1);
 namespace Tests\Feature\Performance;
 
 use App\Filament\Employee\Pages\Attendance;
+use App\Filament\Employee\Pages\Requests;
 use App\Filament\Employee\Widgets\AttendanceHistoryWidget;
+use App\Filament\Employee\Widgets\MyCorrectionRequestsWidget;
+use App\Filament\Employee\Widgets\MyLeaveRequestsWidget;
 use App\Filament\Pages\Dashboard;
+use App\Filament\Resources\AttendanceCorrections\Pages\ListAttendanceCorrections;
 use App\Filament\Resources\Attendances\Pages\ListAttendances;
 use App\Filament\Widgets\AttendanceStatsWidget;
+use App\Filament\Widgets\RequestsQueueWidget;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -64,12 +69,23 @@ final class PageCostTest extends TestCase
         }
     }
 
-    #[Test]
-    public function both_widgets_render_with_their_page_rather_than_asking_again(): void
+    /**
+     * Pending correction requests on distinct days, because at most one may
+     * be pending per employee per day.
+     */
+    private function correctionsFor(User $employee, int $count): void
     {
-        // Filament defers widgets by default. Ours are a single indexed
-        // lookup and five counts, so deferring them buys nothing and costs
-        // a second round trip on every single page load.
+        for ($day = 1; $day <= $count; $day++) {
+            $this->correctionRequest($employee, on: now()->subDays($day));
+        }
+    }
+
+    #[Test]
+    public function every_widget_renders_with_its_page_rather_than_asking_again(): void
+    {
+        // Filament defers widgets by default. Ours are indexed lookups of a
+        // handful of rows and a few counts, so deferring them buys nothing
+        // and costs a second round trip on every single page load.
         $this->assertFalse(
             AttendanceHistoryWidget::isLazy(),
             'The history widget must render with the employee page, not in a second request.',
@@ -78,6 +94,21 @@ final class PageCostTest extends TestCase
         $this->assertFalse(
             AttendanceStatsWidget::isLazy(),
             'The dashboard stats must render with the dashboard, not in a second request.',
+        );
+
+        $this->assertFalse(
+            RequestsQueueWidget::isLazy(),
+            'The queue figures must render with the dashboard, not in a second request.',
+        );
+
+        $this->assertFalse(
+            MyCorrectionRequestsWidget::isLazy(),
+            'The correction requests table must render with the requests page, not in a second request.',
+        );
+
+        $this->assertFalse(
+            MyLeaveRequestsWidget::isLazy(),
+            'The leave requests table must render with the requests page, not in a second request.',
         );
     }
 
@@ -128,6 +159,58 @@ final class PageCostTest extends TestCase
             $small,
             $large,
             "The attendance list ran {$small} queries for six sessions and {$large} for twenty-four: the employee relation or a column is querying per row.",
+        );
+    }
+
+    #[Test]
+    public function the_requests_screen_costs_the_same_whatever_the_employee_has_asked_for(): void
+    {
+        Filament::setCurrentPanel('employee');
+
+        $employee = $this->makeEmployee();
+        $this->actingAs($employee);
+
+        $this->correctionRequest($employee, on: now()->subDays(20));
+        $withOne = $this->queryCount(fn () => Livewire::test(Requests::class)->assertOk());
+
+        foreach (range(1, 9) as $day) {
+            $this->correctionRequest($employee, on: now()->subDays($day));
+        }
+
+        $withTen = $this->queryCount(fn () => Livewire::test(Requests::class)->assertOk());
+
+        // The reason and the status are enum casts on the loaded row and
+        // the requested range is composed in PHP, so ten requests must cost
+        // exactly what one did.
+        $this->assertSame(
+            $withOne,
+            $withTen,
+            "The requests screen ran {$withOne} queries for one request and {$withTen} for ten: a query is being run per row.",
+        );
+    }
+
+    #[Test]
+    public function the_correction_queue_costs_the_same_whatever_it_shows(): void
+    {
+        Filament::setCurrentPanel('admin');
+        $this->actingAs($this->makeAdmin());
+
+        foreach (range(1, 3) as $i) {
+            $this->correctionsFor($this->makeEmployee("first{$i}@company.test"), 2);
+        }
+
+        $small = $this->queryCount(fn () => Livewire::test(ListAttendanceCorrections::class)->assertOk());
+
+        foreach (range(1, 9) as $i) {
+            $this->correctionsFor($this->makeEmployee("more{$i}@company.test"), 2);
+        }
+
+        $large = $this->queryCount(fn () => Livewire::test(ListAttendanceCorrections::class)->assertOk());
+
+        $this->assertSame(
+            $small,
+            $large,
+            "The correction queue ran {$small} queries for six requests and {$large} for twenty-four: the employee relation or a column is querying per row.",
         );
     }
 
@@ -183,11 +266,11 @@ final class PageCostTest extends TestCase
 
         $employee = $this->makeEmployee();
 
-        // The sign-in screen and the one screen behind it. Bunny serves the
-        // webfont and is declared on the panel on purpose; nothing else on
-        // either page may reach off this server, and the avatar is the one
-        // that used to.
-        foreach (['/login', '/'] as $path) {
+        // The sign-in screen and the two screens behind it. Bunny serves
+        // the webfont and is declared on the panel on purpose; nothing else
+        // on any of these pages may reach off this server, and the avatar
+        // is the one that used to.
+        foreach (['/login', '/', '/requests'] as $path) {
             $response = $path === '/login'
                 ? $this->get($path)
                 : $this->actingAs($employee)->get($path);

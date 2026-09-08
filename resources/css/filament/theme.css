@@ -332,6 +332,40 @@
             @apply flex min-h-11 min-w-11 items-center justify-center;
         }
     }
+
+    /*
+     | The employee panel, now that it has forms.
+     |
+     | Until the request modals arrived this panel was two large buttons and a
+     | table, and the rule above covered the admin panel and the signed-out
+     | screens between them. A modal holding a date picker, two time pickers,
+     | a select and a textarea is a different screen: Filament draws those
+     | controls at 36px, and this is the one panel in the product that is only
+     | ever used on a phone.
+     |
+     | Same minimum, same reasoning, same media query - so nothing on a
+     | desktop moves and nothing already larger than 44px changes at all.
+     */
+    .fi-panel-employee {
+        & .fi-btn,
+        & .fi-input-wrp,
+        & .fi-select-input,
+        & .fi-dropdown-list-item {
+            @apply min-h-11;
+        }
+
+        & .fi-icon-btn {
+            @apply min-h-11 min-w-11;
+        }
+
+        & .fi-input-wrp .fi-input {
+            @apply min-h-11;
+        }
+
+        & .fi-ac-link-action {
+            @apply inline-flex min-h-11 items-center;
+        }
+    }
 }
 
 /*
@@ -409,5 +443,14 @@
  | rest of the column already sits.
  */
 [dir='rtl'] .fi-in-text[dir='ltr'] {
+    text-align: right;
+}
+
+/* The two request queues print the same kind of run inside a table cell
+   rather than an infolist entry - a requested "08:00 → 17:00" and a leave
+   period's pair of dates - and a table column carries its own class. Without
+   the twin of the rule above, those values sit against the physical left
+   while every header in the column is set against the right. */
+[dir='rtl'] .fi-ta-text[dir='ltr'] {
     text-align: right;
 }

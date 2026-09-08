@@ -8,6 +8,7 @@ use App\Filament\Resources\Attendances\AttendanceResource;
 use App\Filament\Resources\AttendanceSettings\AttendanceSettingResource;
 use App\Filament\Resources\Employees\EmployeeResource;
 use App\Filament\Widgets\AttendanceStatsWidget;
+use App\Filament\Widgets\RequestsQueueWidget;
 use App\Services\Attendance\AttendanceCalendar;
 use BackedEnum;
 use Filament\Actions\Action;
@@ -16,8 +17,9 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Widgets\Widget;
 
 /**
- * The admin landing page: today's five figures and a shortcut to each of
- * the three things an administrator comes here to do.
+ * The admin landing page: what is waiting for an answer, today's five
+ * figures, and a shortcut to each of the three things an administrator
+ * comes here to do.
  */
 final class Dashboard extends BaseDashboard
 {
@@ -65,6 +67,9 @@ final class Dashboard extends BaseDashboard
     public function getWidgets(): array
     {
         return [
+            // The queues come first: they are the only thing on this page
+            // that asks the reader to do something today.
+            RequestsQueueWidget::class,
             AttendanceStatsWidget::class,
         ];
     }

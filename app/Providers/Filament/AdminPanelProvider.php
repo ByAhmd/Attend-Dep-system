@@ -6,12 +6,16 @@ namespace App\Providers\Filament;
 
 use App\Enums\NavigationGroup;
 use App\Filament\Pages\Dashboard;
+use App\Filament\Resources\AttendanceCorrections\AttendanceCorrectionResource;
 use App\Filament\Resources\AttendanceRejections\AttendanceRejectionResource;
 use App\Filament\Resources\Attendances\AttendanceResource;
 use App\Filament\Resources\AttendanceSettings\AttendanceSettingResource;
 use App\Filament\Resources\Employees\EmployeeResource;
+use App\Filament\Resources\JobTitles\JobTitleResource;
+use App\Filament\Resources\LeaveRequests\LeaveRequestResource;
 use App\Filament\Resources\PresencePings\PresencePingResource;
 use App\Filament\Widgets\AttendanceStatsWidget;
+use App\Filament\Widgets\RequestsQueueWidget;
 use App\Providers\Filament\Concerns\ConfiguresPanel;
 use App\Support\Filament\PanelAccess;
 use App\Support\Filament\PanelSwitchMenuItems;
@@ -20,9 +24,10 @@ use Filament\Panel;
 use Filament\PanelProvider;
 
 /**
- * The administration panel at /admin: employees, attendance records, the
- * audit trail of rejected attempts, the presence pings recorded during open
- * sessions, and the company location settings.
+ * The administration panel at /admin: employees and the job titles they may
+ * be given, attendance records, the audit trail of rejected attempts, the
+ * presence pings recorded during open sessions, the two request queues, and
+ * the company location settings.
  *
  * Resources and pages are listed explicitly rather than discovered, so
  * nothing can land on a panel by being in the wrong directory.
@@ -55,15 +60,19 @@ final class AdminPanelProvider extends PanelProvider
                 ->navigationGroups($this->navigationGroups())
                 ->resources([
                     EmployeeResource::class,
+                    JobTitleResource::class,
                     AttendanceResource::class,
                     AttendanceRejectionResource::class,
                     PresencePingResource::class,
+                    AttendanceCorrectionResource::class,
+                    LeaveRequestResource::class,
                     AttendanceSettingResource::class,
                 ])
                 ->pages([
                     Dashboard::class,
                 ])
                 ->widgets([
+                    RequestsQueueWidget::class,
                     AttendanceStatsWidget::class,
                 ]),
         );

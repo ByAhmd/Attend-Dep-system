@@ -8,6 +8,7 @@ use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Filament\Resources\Employees\Actions\InviteEmployeeAction;
 use App\Filament\Resources\Employees\EmployeeResource;
+use App\Filament\Resources\Employees\Schemas\EmployeeForm;
 use App\Models\User;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
@@ -35,6 +36,11 @@ final class CreateEmployee extends CreateRecord
      * The select is disabled for them and the value is dropped again here,
      * on the data that actually arrived.
      *
+     * The job title is checked against the titles the form was entitled to
+     * offer. It carries no authorisation at all - that is the point of it -
+     * but a retired title arriving from a hand-built request would still be
+     * a title nobody chose.
+     *
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
@@ -47,7 +53,7 @@ final class CreateEmployee extends CreateRecord
             $data['role'] = UserRole::Employee;
         }
 
-        return $data;
+        return EmployeeForm::withKnownJobTitle($data);
     }
 
     protected function afterCreate(): void

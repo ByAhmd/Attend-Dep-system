@@ -4,16 +4,21 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Filament;
 
+use App\Enums\EmploymentType;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Filament\Resources\Employees\Pages\CreateEmployee;
 use App\Filament\Resources\Employees\Pages\EditEmployee;
 use App\Filament\Resources\Employees\Pages\ListEmployees;
+use App\Filament\Resources\Employees\Schemas\EmployeeForm;
+use App\Models\JobTitle;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Hash;
 use Livewire\Livewire;
+use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Concerns\CreatesAttendanceFixtures;
 use Tests\TestCase;
@@ -170,6 +175,119 @@ final class EmployeeResourceTest extends TestCase
     }
 
     #[Test]
+    public function the_list_prints_the_position_under_the_name_in_the_readers_own_language(): void
+    {
+        // Composed from two fields and stored nowhere, so each language
+        // reads it in its own word order and renaming the title renames it
+        // on every row at once.
+        $title = $this->makeJobTitle('تسويق', 'Marketing');
+        $intern = $this->intern($title);
+
+        Livewire::test(ListEmployees::class)->assertSee('متدرّب تسويق');
+
+        App::setLocale('en');
+
+        Livewire::test(ListEmployees::class)->assertSee('Marketing intern');
+
+        $this->assertSame('Marketing intern', $intern->positionLabel());
+    }
+
+    #[Test]
+    public function an_account_with_neither_a_title_nor_an_internship_prints_no_position(): void
+    {
+        $this->assertNull($this->makeEmployee()->positionLabel());
+    }
+
+    #[Test]
+    public function the_two_new_filters_narrow_the_list_to_one_kind_of_person(): void
+    {
+        $marketing = $this->makeJobTitle('تسويق', 'Marketing');
+        $support = $this->makeJobTitle('الدعم', 'Support');
+
+        $intern = $this->intern($marketing);
+        $employee = $this->makeEmployee('sara@company.test');
+        $employee->update(['job_title_id' => $support->id]);
+
+        Livewire::test(ListEmployees::class)
+            ->filterTable('employment_type', EmploymentType::Intern->value)
+            ->assertCanSeeTableRecords([$intern])
+            ->assertCanNotSeeTableRecords([$employee, $this->admin]);
+
+        Livewire::test(ListEmployees::class)
+            ->filterTable('job_title_id', $support->id)
+            ->assertCanSeeTableRecords([$employee])
+            ->assertCanNotSeeTableRecords([$intern, $this->admin]);
+    }
+
+    #[Test]
+    public function the_employment_type_and_job_title_are_written_by_the_create_form(): void
+    {
+        $title = $this->makeJobTitle('تسويق', 'Marketing');
+
+        Livewire::test(CreateEmployee::class)
+            ->assertFormFieldExists('employment_type')
+            ->assertFormFieldExists('job_title_id')
+            ->fillForm([
+                'name' => 'Sara Ali',
+                'email' => 'sara@company.test',
+                'employment_type' => EmploymentType::Intern->value,
+                'job_title_id' => $title->id,
+            ])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $created = User::query()->where('email', 'sara@company.test')->first();
+
+        $this->assertNotNull($created);
+        $this->assertSame(EmploymentType::Intern, $created->employment_type);
+        $this->assertSame($title->id, $created->job_title_id);
+    }
+
+    #[Test]
+    public function the_employment_type_and_job_title_survive_a_save_and_are_not_stripped(): void
+    {
+        // Neither field carries any authorisation, which is exactly why the
+        // save that drops role and status must leave these two alone.
+        $title = $this->makeJobTitle('تسويق', 'Marketing');
+        $employee = $this->makeEmployee();
+
+        Livewire::test(EditEmployee::class, ['record' => $employee->getRouteKey()])
+            ->fillForm([
+                'employment_type' => EmploymentType::Intern->value,
+                'job_title_id' => $title->id,
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $employee = $employee->fresh();
+
+        $this->assertSame(EmploymentType::Intern, $employee->employment_type);
+        $this->assertSame($title->id, $employee->job_title_id);
+    }
+
+    #[Test]
+    public function a_job_title_the_form_never_offered_is_dropped_rather_than_written(): void
+    {
+        // The select refuses an unknown option, but a disabled input is a
+        // browser courtesy and so is a select's option list: the rule is
+        // asked again on the data that actually arrived.
+        $retired = $this->makeJobTitle('مسمى قديم', 'Retired title', active: false);
+        $holder = $this->makeEmployee('holder@company.test');
+        $holder->update(['job_title_id' => $retired->id]);
+
+        $this->assertNull(EmployeeForm::withKnownJobTitle(['job_title_id' => 999_999])['job_title_id']);
+        $this->assertNull(EmployeeForm::withKnownJobTitle(['job_title_id' => $retired->id])['job_title_id']);
+
+        // Except for the account already wearing it, which keeps it.
+        $this->assertSame(
+            $retired->id,
+            EmployeeForm::withKnownJobTitle(['job_title_id' => (string) $retired->id], $holder)['job_title_id'],
+        );
+
+        $this->assertSame([], EmployeeForm::withKnownJobTitle([]));
+    }
+
+    #[Test]
     public function role_and_status_are_locked_when_an_administrator_edits_their_own_account(): void
     {
         Livewire::test(EditEmployee::class, ['record' => $this->admin->getRouteKey()])
@@ -191,13 +309,13 @@ final class EmployeeResourceTest extends TestCase
 
         Livewire::test(EditEmployee::class, ['record' => $employee->getRouteKey()])
             ->assertFormFieldDisabled('role')
-            ->assertSee(__('employees.helpers.role_super_admin_only'));
+            ->assertSee(__('employees.helpers.role_locked'));
 
         $this->actAsSuperAdmin();
 
         Livewire::test(EditEmployee::class, ['record' => $employee->getRouteKey()])
             ->assertFormFieldEnabled('role')
-            ->assertDontSee(__('employees.helpers.role_super_admin_only'));
+            ->assertDontSee(__('employees.helpers.role_locked'));
     }
 
     #[Test]
@@ -583,13 +701,38 @@ final class EmployeeResourceTest extends TestCase
             ->assertTableActionHidden('delete', $employee);
     }
 
-    #[Test]
-    public function the_super_administrators_own_row_is_marked_protected_and_offers_no_destructive_action(): void
+    /**
+     * @return array<string, array{string}>
+     */
+    public static function locales(): array
     {
+        return [
+            'arabic' => ['ar'],
+            'english' => ['en'],
+        ];
+    }
+
+    #[Test]
+    #[DataProvider('locales')]
+    public function the_super_administrators_row_says_nothing_about_them_and_still_offers_no_destructive_action(string $locale): void
+    {
+        App::setLocale($locale);
+
         $superAdmin = $this->actAsSuperAdmin();
 
+        // The phrases are written out rather than resolved through __():
+        // the keys are gone, and __() on a missing key returns the key
+        // itself, which would let this assertion pass with the badge still
+        // on the screen. Both locales, because the suite runs in Arabic and
+        // the English sentence would otherwise never be exercised at all.
         Livewire::test(ListEmployees::class)
-            ->assertSee(__('employees.super_admin.badge'))
+            // The positive half: the badge is rendered and legible to the
+            // assertions below, and it says what the role column holds and
+            // nothing else.
+            ->assertSee(UserRole::Admin->label())
+            ->assertDontSee('المسؤول الأعلى')
+            ->assertDontSee('Super administrator')
+            ->assertDontSee('SUPER_ADMIN_EMAIL')
             ->assertTableActionHidden('delete', $superAdmin)
             ->assertTableActionHidden('toggleStatus', $superAdmin)
             ->assertTableActionHidden('resetPassword', $superAdmin);
@@ -600,7 +743,32 @@ final class EmployeeResourceTest extends TestCase
             ->assertActionHidden('resetPassword')
             ->assertFormFieldDisabled('role')
             ->assertFormFieldDisabled('status')
-            ->assertSee(__('employees.super_admin.protected'));
+            ->assertDontSee('المسؤول الأعلى')
+            ->assertDontSee('Super administrator')
+            ->assertDontSee('SUPER_ADMIN_EMAIL');
+    }
+
+    #[Test]
+    #[DataProvider('locales')]
+    public function the_designated_accounts_locked_selects_say_what_every_other_locked_row_says(string $locale): void
+    {
+        // The lock itself cannot be hidden without removing a power. What
+        // can be hidden is the reason: an ordinary administrator reads the
+        // same two sentences here as on any account they may not change,
+        // and a sentence written only for this row would be the tell.
+        App::setLocale($locale);
+
+        $designated = $this->makeAdmin('owner@company.test');
+        config(['admin.super_admin_email' => 'owner@company.test']);
+
+        $employee = $this->makeEmployee();
+
+        foreach ([$designated, $employee] as $record) {
+            Livewire::test(EditEmployee::class, ['record' => $record->getRouteKey()])
+                ->assertFormFieldDisabled('role')
+                ->assertSee(__('employees.helpers.role_locked'))
+                ->assertSee(__('employees.helpers.status'));
+        }
     }
 
     #[Test]
@@ -643,6 +811,19 @@ final class EmployeeResourceTest extends TestCase
     public function an_administrator_reaches_the_employee_list_over_http(): void
     {
         $this->get('/admin/employees')->assertOk();
+    }
+
+    /**
+     * An active account that is an intern and holds the given title, which
+     * is the one combination the position eyebrow composes from both halves.
+     */
+    private function intern(JobTitle $title, string $email = 'trainee@company.test'): User
+    {
+        return User::factory()->create([
+            'email' => $email,
+            'employment_type' => EmploymentType::Intern,
+            'job_title_id' => $title->id,
+        ]);
     }
 
     private function pendingEmployee(string $email = 'waiting@company.test'): User

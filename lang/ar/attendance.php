@@ -102,11 +102,27 @@ return [
         'check_out_location' => 'موقع الانصراف',
         'status' => 'الحالة',
         'duration' => 'المدة',
+        'original_check_in_at' => 'ما سجّله الجهاز للحضور',
+        'original_check_out_at' => 'ما سجّله الجهاز للانصراف',
+        'correction_reason' => 'سبب التصحيح',
+        'corrected_by' => 'اعتمده',
+    ],
+
+    'badges' => [
+        'corrected' => 'مصحَّح',
+        'recorded_manually' => 'مسجَّل يدويًا',
+        'corrected_from' => 'الجهاز سجّل :time',
     ],
 
     'sections' => [
         'check_in' => 'الحضور',
         'check_out' => 'الانصراف',
+        'correction' => 'التصحيح',
+    ],
+
+    'helpers' => [
+        'distance_describes_device_reading' => 'تصف هذه المسافة اللحظة التي سجّلها الجهاز، لا الوقت المصحَّح أعلاه.',
+        'corrected_not_verified' => 'هذا الوقت أُقرّ بموافقة إداري ولم تتحقق منه خدمة الموقع.',
     ],
 
     'units' => [
@@ -118,6 +134,7 @@ return [
 
     'placeholders' => [
         'no_check_out' => 'لم يسجّل الانصراف',
+        'no_device_record' => 'لم يسجّل الجهاز موقعًا لهذه اللحظة',
     ],
 
     'filters' => [
@@ -127,6 +144,10 @@ return [
         'date_range' => 'الفترة',
         'from' => 'من',
         'until' => 'إلى',
+        'corrected' => 'السجلات المصحَّحة',
+        'corrected_any' => 'الكل',
+        'corrected_only' => 'المصحَّحة فقط',
+        'corrected_none' => 'غير المصحَّحة فقط',
     ],
 
     'summaries' => [
@@ -140,6 +161,7 @@ return [
     'admin_actions' => [
         'view' => 'عرض',
         'open_map' => 'فتح في الخريطة',
+        'open_correction' => 'عرض طلب التصحيح',
     ],
 
     'empty' => [

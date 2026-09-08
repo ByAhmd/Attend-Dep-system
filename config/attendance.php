@@ -64,4 +64,37 @@ return [
         'max' => 5000,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Default monthly correction allowance
+    |--------------------------------------------------------------------------
+    |
+    | How many attendance corrections one employee may ask for in a Gregorian
+    | month. Only the value the settings row is created with; the live figure
+    | is edited from the admin panel, because this is a business policy the
+    | owner changes without an SSH session - the radius side of the line, not
+    | the accuracy-ceiling side. Zero switches correction requests off
+    | entirely.
+    |
+    */
+
+    'default_correction_requests_per_month' => 3,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Correction allowance bounds
+    |--------------------------------------------------------------------------
+    |
+    | What the settings form will accept. Zero is a real setting and means
+    | "no corrections at all". Thirty-one is one request for every day of the
+    | longest month; above that a ration nobody can exhaust is an unlimited
+    | allowance wearing a number.
+    |
+    */
+
+    'correction_quota_bounds' => [
+        'min' => 0,
+        'max' => 31,
+    ],
+
 ];

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\Employees\Tables;
 
+use App\Enums\EmploymentType;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Filament\Resources\Employees\Actions\CopyInvitationLinkAction;
@@ -12,6 +13,7 @@ use App\Filament\Resources\Employees\Actions\InviteEmployeeAction;
 use App\Filament\Resources\Employees\Actions\ResetPasswordAction;
 use App\Filament\Resources\Employees\Actions\RestoreEmployeeAction;
 use App\Filament\Resources\Employees\Actions\ToggleStatusAction;
+use App\Models\JobTitle;
 use App\Models\User;
 use BackedEnum;
 use Filament\Actions\ActionGroup;
@@ -23,6 +25,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 /**
  * Employee list. No bulk actions: accounts are switched off, or deleted, one
@@ -41,23 +44,32 @@ use Filament\Tables\Table;
  * status column happened to hold on the way out. Deleted rows appear only
  * when the reader asks for them through the trashed filter.
  *
- * The super administrator is shown as such in the role badge, shield and
- * all, whatever the role column says: this is the row that carries the
- * powers, and the row that offers none of the destructive actions.
+ * The role column says what the role column holds, for every account
+ * without exception. No row is marked as anything more than its role: the
+ * account designated in the environment is deliberately not distinguished
+ * here, and a badge, an icon, a colour or a tooltip that singled it out
+ * would be the announcement this screen is meant not to make. The powers
+ * are unchanged and live in UserPolicy; only the labelling is gone.
  *
- * A person is one thing, so a person is one column: the name with the
- * address underneath it, the way an address book has always shown it. The
- * search still matches either, and the two columns saved go to the states
- * beside them, which are what this screen is read for.
+ * A person is one thing, so a person is one column: the position above the
+ * name and the address underneath it, the way an address book has always
+ * shown it. The search still matches name or address, and the two columns
+ * saved go to the states beside them, which are what this screen is read
+ * for. The position is composed from two loaded fields, so the title is
+ * eager loaded and the list costs the same query whatever it holds.
  */
 final class EmployeesTable
 {
     public static function configure(Table $table): Table
     {
         return $table
+            // The position under a name reads two fields of another table,
+            // so the title comes with the page rather than one query per row.
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('jobTitle'))
             ->columns([
                 TextColumn::make('name')
                     ->label(__('employees.fields.name'))
+                    ->description(fn (User $record): ?string => $record->positionLabel(), position: 'above')
                     ->description(fn (User $record): string => $record->email)
                     ->weight(FontWeight::SemiBold)
                     ->grow()
@@ -67,23 +79,14 @@ final class EmployeesTable
                 TextColumn::make('role')
                     ->label(__('employees.fields.role'))
                     ->badge()
-                    ->formatStateUsing(fn (UserRole $state, User $record): string => $record->isSuperAdmin()
-                        ? __('employees.super_admin.badge')
-                        : $state->label())
-                    ->icon(fn (UserRole $state, User $record): BackedEnum => match (true) {
-                        $record->isSuperAdmin() => Heroicon::OutlinedShieldCheck,
-                        $state->isAdmin() => Heroicon::OutlinedKey,
-                        default => Heroicon::OutlinedUser,
-                    })
+                    ->formatStateUsing(fn (UserRole $state): string => $state->label())
+                    ->icon(fn (UserRole $state): BackedEnum => $state->isAdmin()
+                        ? Heroicon::OutlinedKey
+                        : Heroicon::OutlinedUser)
                     // The brand colour marks the accounts that can change
                     // the system; it is not a verdict on anybody, which is
                     // why it is the primary ramp and not a semantic one.
-                    ->color(fn (UserRole $state, User $record): string => $record->isSuperAdmin() || $state->isAdmin()
-                        ? 'primary'
-                        : 'gray')
-                    ->tooltip(fn (User $record): ?string => $record->isSuperAdmin()
-                        ? __('employees.super_admin.protected')
-                        : null),
+                    ->color(fn (UserRole $state): string => $state->isAdmin() ? 'primary' : 'gray'),
 
                 TextColumn::make('status')
                     ->label(__('employees.fields.status'))
@@ -120,6 +123,21 @@ final class EmployeesTable
                 SelectFilter::make('status')
                     ->label(__('employees.filters.status'))
                     ->options(UserStatus::options()),
+
+                SelectFilter::make('employment_type')
+                    ->label(__('employees.filters.employment_type'))
+                    ->options(EmploymentType::options()),
+
+                // Ordered by the Arabic name in both languages, the way the
+                // job titles screen orders itself, and labelled in the
+                // reader's own language so this list does not become the one
+                // place in the panel that answers in Arabic only.
+                SelectFilter::make('job_title_id')
+                    ->label(__('employees.filters.job_title'))
+                    ->relationship('jobTitle', 'name_ar')
+                    ->getOptionLabelFromRecordUsing(fn (JobTitle $record): string => $record->displayName())
+                    ->searchable()
+                    ->preload(),
 
                 // Deleted accounts are out of the list until this is set,
                 // which is what "the account disappears" means in practice.

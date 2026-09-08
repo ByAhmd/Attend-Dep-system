@@ -202,6 +202,24 @@
                                                     {{ $session['duration'] }}
                                                 </span>
                                             @endunless
+
+                                            {{-- A corrected time is marked
+                                                 wherever it is printed, on
+                                                 the employee's own screen as
+                                                 much as on the
+                                                 administrator's. Info and
+                                                 not warning: amber on this
+                                                 page means something is
+                                                 wrong, and a time somebody
+                                                 asked for and an
+                                                 administrator granted is not
+                                                 wrong. --}}
+                                            @if ($session['isCorrected'])
+                                                <span class="inline-flex items-center gap-1 rounded-md bg-info-50 px-2 py-0.5 text-xs font-medium text-info-700 dark:bg-info-400/10 dark:text-info-400">
+                                                    <x-filament::icon icon="heroicon-m-pencil-square" class="size-3.5" />
+                                                    {{ __('attendance.badges.corrected') }}
+                                                </span>
+                                            @endif
                                         </div>
 
                                         <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
@@ -308,6 +326,14 @@
                 </div>
             </div>
         </div>
+
+        {{--
+         | Everything else an employee might have come for, under the card
+         | and above the hints. Never above the card: checking in is why this
+         | page exists, and a form nobody opens weekly must not sit between a
+         | thumb and the button somebody presses every morning.
+         --}}
+        @include('filament.employee.partials.quick-actions', ['tiles' => $tiles])
 
         {{--
          | How the screen behaves, kept off the card and under it: true, worth

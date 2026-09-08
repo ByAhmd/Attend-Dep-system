@@ -4,15 +4,20 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Filament;
 
+use App\Enums\RequestStatus;
 use App\Enums\UserStatus;
 use App\Filament\Pages\Dashboard;
+use App\Filament\Resources\AttendanceCorrections\AttendanceCorrectionResource;
 use App\Filament\Resources\Attendances\AttendanceResource;
 use App\Filament\Resources\AttendanceSettings\AttendanceSettingResource;
 use App\Filament\Resources\Employees\EmployeeResource;
+use App\Filament\Resources\LeaveRequests\LeaveRequestResource;
 use App\Filament\Widgets\AttendanceStatsWidget;
+use App\Filament\Widgets\RequestsQueueWidget;
 use App\Services\Attendance\AttendanceCalendar;
 use Closure;
 use Filament\Facades\Filament;
+use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -21,7 +26,8 @@ use Tests\Concerns\CreatesAttendanceFixtures;
 use Tests\TestCase;
 
 /**
- * The admin dashboard and its five figures.
+ * The admin dashboard: the two queue figures above, and the five that
+ * describe the day below.
  *
  * The fixture is chosen so every figure differs from its neighbours:
  * three employees (one inactive), two records today (one still open),
@@ -70,10 +76,32 @@ final class DashboardTest extends TestCase
      */
     private function statsByLabel(): array
     {
-        $widget = Livewire::test(AttendanceStatsWidget::class)->instance();
+        return $this->readStats(AttendanceStatsWidget::class);
+    }
+
+    /**
+     * The queue row as label => value, read the same way.
+     *
+     * @return array<string, string>
+     */
+    private function queueStatsByLabel(): array
+    {
+        return $this->readStats(RequestsQueueWidget::class);
+    }
+
+    /**
+     * A stats widget's own getStats(), so the assertion covers the wiring
+     * to the service rather than a copy of its arithmetic.
+     *
+     * @param  class-string<StatsOverviewWidget>  $widget
+     * @return array<string, string>
+     */
+    private function readStats(string $widget): array
+    {
+        $instance = Livewire::test($widget)->instance();
 
         /** @var array<int, Stat> $stats */
-        $stats = Closure::bind(fn (): array => $this->getStats(), $widget, AttendanceStatsWidget::class)();
+        $stats = Closure::bind(fn (): array => $this->getStats(), $instance, $widget)();
 
         $byLabel = [];
 
@@ -82,6 +110,23 @@ final class DashboardTest extends TestCase
         }
 
         return $byLabel;
+    }
+
+    /**
+     * The Stat objects of a widget, for the assertions that need more than
+     * the label and the value.
+     *
+     * @param  class-string<StatsOverviewWidget>  $widget
+     * @return array<int, Stat>
+     */
+    private function readStatObjects(string $widget): array
+    {
+        $instance = Livewire::test($widget)->instance();
+
+        /** @var array<int, Stat> $stats */
+        $stats = Closure::bind(fn (): array => $this->getStats(), $instance, $widget)();
+
+        return $stats;
     }
 
     #[Test]
@@ -190,5 +235,72 @@ final class DashboardTest extends TestCase
             ->assertOk()
             ->assertSee(__('dashboard.title'))
             ->assertSee(__('dashboard.stats.employees_total'));
+    }
+
+    #[Test]
+    public function the_queue_widget_is_on_the_dashboard_above_the_days_figures(): void
+    {
+        $this->assertSame(
+            [RequestsQueueWidget::class, AttendanceStatsWidget::class],
+            (new Dashboard)->getWidgets(),
+        );
+
+        Livewire::test(RequestsQueueWidget::class)
+            ->assertOk()
+            ->assertSee(__('dashboard.stats.pending_corrections'))
+            ->assertSee(__('dashboard.stats.pending_leave'));
+    }
+
+    #[Test]
+    public function the_two_queue_figures_count_what_is_waiting_for_a_decision(): void
+    {
+        $sara = $this->makeEmployee('sara@company.test');
+        $omar = $this->makeEmployee('omar@company.test');
+
+        $this->correctionRequest($sara);
+        $this->correctionRequest($omar);
+        $this->leaveRequest($sara);
+
+        $this->assertSame([
+            __('dashboard.stats.pending_corrections') => '2',
+            __('dashboard.stats.pending_leave') => '1',
+        ], $this->queueStatsByLabel());
+    }
+
+    #[Test]
+    public function an_empty_queue_still_shows_its_figure_and_shows_it_grey(): void
+    {
+        // A figure that appeared only when it was bad would teach the
+        // reader to distrust its absence.
+        $stats = $this->readStatObjects(RequestsQueueWidget::class);
+
+        $this->assertCount(2, $stats);
+
+        foreach ($stats as $stat) {
+            $this->assertSame('0', (string) $stat->getValue());
+            $this->assertSame('gray', $stat->getColor());
+        }
+    }
+
+    #[Test]
+    public function a_waiting_queue_is_amber(): void
+    {
+        $this->correctionRequest($this->makeEmployee('sara@company.test'));
+
+        $stats = $this->readStatObjects(RequestsQueueWidget::class);
+
+        $this->assertSame('warning', $stats[0]->getColor());
+        $this->assertSame('gray', $stats[1]->getColor());
+    }
+
+    #[Test]
+    public function each_queue_figure_links_to_its_own_list_already_filtered_to_pending(): void
+    {
+        $pending = ['filters' => ['status' => ['value' => RequestStatus::Pending->value]]];
+
+        $stats = $this->readStatObjects(RequestsQueueWidget::class);
+
+        $this->assertSame(AttendanceCorrectionResource::getUrl('index', $pending), $stats[0]->getUrl());
+        $this->assertSame(LeaveRequestResource::getUrl('index', $pending), $stats[1]->getUrl());
     }
 }
