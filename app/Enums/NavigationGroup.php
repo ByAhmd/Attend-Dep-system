@@ -17,6 +17,7 @@ use Filament\Support\Contracts\HasLabel;
 enum NavigationGroup: string implements HasLabel
 {
     case Attendance = 'attendance';
+    case Requests = 'requests';
     case System = 'system';
 
     public function getLabel(): string

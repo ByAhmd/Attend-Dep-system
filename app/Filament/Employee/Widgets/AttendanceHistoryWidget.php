@@ -6,8 +6,12 @@ namespace App\Filament\Employee\Widgets;
 
 use App\Models\Attendance;
 use App\Support\Attendance\SessionDuration;
+use BackedEnum;
+use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\IconPosition;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
@@ -64,14 +68,48 @@ final class AttendanceHistoryWidget extends TableWidget
                     ->date('Y-m-d')
                     ->weight(FontWeight::Medium),
 
+                // A corrected time is marked here in exactly the words the
+                // administrator's list uses, and with the moment the device
+                // recorded printed underneath it. The employee is the person
+                // with the most reason to know which of their times a
+                // machine saw and which one was granted: reading it here and
+                // reading it there must never be two different stories.
                 TextColumn::make('check_in_at')
                     ->label(__('attendance.fields.check_in_at'))
-                    ->time('H:i'),
+                    ->time('H:i')
+                    ->icon(fn (Attendance $record): ?BackedEnum => $record->isCheckInCorrected()
+                        ? Heroicon::OutlinedPencilSquare
+                        : null)
+                    ->iconPosition(IconPosition::Before)
+                    ->color(fn (Attendance $record): ?string => $record->isCheckInCorrected() ? 'info' : null)
+                    ->description(fn (Attendance $record): ?string => self::correctedWord(
+                        $record->isCheckInCorrected(),
+                        $record->hasDeviceCheckIn(),
+                    ), position: 'above')
+                    ->description(fn (Attendance $record): ?string => self::deviceMoment(
+                        $record->isCheckInCorrected(),
+                        $record->hasDeviceCheckIn(),
+                        $record->deviceCheckInAt(),
+                    )),
 
                 TextColumn::make('check_out_at')
                     ->label(__('attendance.fields.check_out_at'))
                     ->time('H:i')
-                    ->placeholder(__('attendance.placeholders.no_check_out')),
+                    ->placeholder(__('attendance.placeholders.no_check_out'))
+                    ->icon(fn (Attendance $record): ?BackedEnum => $record->isCheckOutCorrected()
+                        ? Heroicon::OutlinedPencilSquare
+                        : null)
+                    ->iconPosition(IconPosition::Before)
+                    ->color(fn (Attendance $record): ?string => $record->isCheckOutCorrected() ? 'info' : null)
+                    ->description(fn (Attendance $record): ?string => self::correctedWord(
+                        $record->isCheckOutCorrected(),
+                        $record->hasDeviceCheckOut(),
+                    ), position: 'above')
+                    ->description(fn (Attendance $record): ?string => self::deviceMoment(
+                        $record->isCheckOutCorrected(),
+                        $record->hasDeviceCheckOut(),
+                        $record->deviceCheckOutAt(),
+                    )),
 
                 TextColumn::make('duration')
                     ->label(__('attendance.fields.duration'))
@@ -94,5 +132,40 @@ final class AttendanceHistoryWidget extends TableWidget
             ->emptyStateIcon('heroicon-o-clock')
             ->emptyStateHeading(__('attendance.history.empty_heading'))
             ->emptyStateDescription(__('attendance.history.empty_description'));
+    }
+
+    /**
+     * Which of the two things happened to this moment, or nothing at all.
+     *
+     * The same two words, chosen the same way, as the administrator's list:
+     * مصحَّح for a time the device recorded and an approved correction
+     * moved, مسجَّل يدويًا for a time the device never recorded at all. The
+     * employee has more reason than anybody to know which of their own times
+     * a machine saw, and the answer they read here has to be the answer the
+     * administrator reads there.
+     */
+    private static function correctedWord(bool $isCorrected, bool $hasDeviceRecord): ?string
+    {
+        if (! $isCorrected) {
+            return null;
+        }
+
+        return $hasDeviceRecord
+            ? __('attendance.badges.corrected')
+            : __('attendance.badges.recorded_manually');
+    }
+
+    /**
+     * What the device recorded before the correction moved it, under the
+     * moment that replaced it. Nothing where the device recorded nothing:
+     * the word above has already said so.
+     */
+    private static function deviceMoment(bool $isCorrected, bool $hasDeviceRecord, ?CarbonImmutable $moment): ?string
+    {
+        if (! $isCorrected || ! $hasDeviceRecord || $moment === null) {
+            return null;
+        }
+
+        return __('attendance.badges.corrected_from', ['time' => $moment->format('H:i')]);
     }
 }

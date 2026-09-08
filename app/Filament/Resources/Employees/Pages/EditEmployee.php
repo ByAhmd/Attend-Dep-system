@@ -11,6 +11,7 @@ use App\Filament\Resources\Employees\Actions\ResetPasswordAction;
 use App\Filament\Resources\Employees\Actions\RestoreEmployeeAction;
 use App\Filament\Resources\Employees\Actions\ToggleStatusAction;
 use App\Filament\Resources\Employees\EmployeeResource;
+use App\Filament\Resources\Employees\Schemas\EmployeeForm;
 use App\Models\User;
 use Filament\Resources\Pages\EditRecord;
 
@@ -51,6 +52,11 @@ final class EditEmployee extends EditRecord
      * looks usable, has no password, and can never sign in - the invitation
      * or the deactivate action are the only ways out of that state.
      *
+     * The job title is checked last, against the titles this account was
+     * entitled to be offered - the active ones and the one it already holds.
+     * It grants nothing either way; a retired title is simply one nobody is
+     * choosing any more.
+     *
      * @param  array<string, mixed>  $data
      * @return array<string, mixed>
      */
@@ -70,6 +76,6 @@ final class EditEmployee extends EditRecord
             unset($data['status']);
         }
 
-        return $data;
+        return EmployeeForm::withKnownJobTitle($data, $record instanceof User ? $record : null);
     }
 }

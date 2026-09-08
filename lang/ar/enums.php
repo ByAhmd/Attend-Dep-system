@@ -34,4 +34,34 @@ return [
         'insufficient_accuracy' => 'دقة الموقع غير كافية',
         'outside_allowed_area' => 'خارج النطاق المسموح',
     ],
+
+    'employment_type' => [
+        'employee' => 'موظف',
+        'intern' => 'متدرّب',
+    ],
+
+    'request_status' => [
+        'pending' => 'قيد المراجعة',
+        'approved' => 'مقبول',
+        'rejected' => 'مرفوض',
+    ],
+
+    'correction_reason' => [
+        'forgot_to_record' => 'نسيان تسجيل الحضور أو الانصراف',
+        'location_problem' => 'تعذّر تحديد الموقع',
+        'application_problem' => 'مشكلة في التطبيق',
+        'connection_problem' => 'انقطاع الاتصال بالإنترنت',
+        'remote_work' => 'عمل عن بُعد',
+        'external_visit' => 'زيارة موقع خارجي',
+        'overtime_after_check_out' => 'عمل إضافي بعد تسجيل الانصراف',
+    ],
+
+    'leave_type' => [
+        'annual' => 'إجازة سنوية',
+        'sick' => 'إجازة مرضية',
+        'exam' => 'إجازة اختبارات',
+        'bereavement_immediate' => 'وفاة زوج أو أحد الأصول أو الفروع',
+        'bereavement_sibling' => 'وفاة أخ أو أخت',
+        'unpaid' => 'إجازة بدون راتب',
+    ],
 ];

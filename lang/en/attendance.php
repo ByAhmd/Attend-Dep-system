@@ -103,11 +103,27 @@ return [
         'check_out_location' => 'Check-out location',
         'status' => 'Status',
         'duration' => 'Duration',
+        'original_check_in_at' => 'Check-in as the device recorded it',
+        'original_check_out_at' => 'Check-out as the device recorded it',
+        'correction_reason' => 'Reason for the correction',
+        'corrected_by' => 'Approved by',
+    ],
+
+    'badges' => [
+        'corrected' => 'Corrected',
+        'recorded_manually' => 'Recorded by hand',
+        'corrected_from' => 'The device recorded :time',
     ],
 
     'sections' => [
         'check_in' => 'Check-in',
         'check_out' => 'Check-out',
+        'correction' => 'The correction',
+    ],
+
+    'helpers' => [
+        'distance_describes_device_reading' => 'This distance describes the moment the device recorded, not the corrected time above it.',
+        'corrected_not_verified' => 'This time was entered by an approved correction and was not verified by location.',
     ],
 
     'units' => [
@@ -119,6 +135,7 @@ return [
 
     'placeholders' => [
         'no_check_out' => 'Not checked out',
+        'no_device_record' => 'The device recorded no position for this moment',
     ],
 
     'filters' => [
@@ -128,6 +145,10 @@ return [
         'date_range' => 'Date range',
         'from' => 'From',
         'until' => 'Until',
+        'corrected' => 'Corrected records',
+        'corrected_any' => 'All records',
+        'corrected_only' => 'Corrected only',
+        'corrected_none' => 'Uncorrected only',
     ],
 
     'summaries' => [
@@ -141,6 +162,7 @@ return [
     'admin_actions' => [
         'view' => 'View',
         'open_map' => 'Open in map',
+        'open_correction' => 'Open the correction request',
     ],
 
     'empty' => [

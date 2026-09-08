@@ -22,8 +22,9 @@ use Illuminate\Database\UniqueConstraintViolationException;
  * @property ?string $latitude
  * @property ?string $longitude
  * @property int $radius_meters
+ * @property int $correction_requests_per_month
  */
-#[Fillable(['latitude', 'longitude', 'radius_meters'])]
+#[Fillable(['latitude', 'longitude', 'radius_meters', 'correction_requests_per_month'])]
 final class AttendanceSetting extends Model
 {
     public const int SINGLETON_ID = 1;
@@ -42,6 +43,7 @@ final class AttendanceSetting extends Model
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
             'radius_meters' => 'integer',
+            'correction_requests_per_month' => 'integer',
         ];
     }
 
@@ -62,6 +64,7 @@ final class AttendanceSetting extends Model
             return self::query()->forceCreate([
                 'id' => self::SINGLETON_ID,
                 'radius_meters' => (int) config('attendance.default_radius_meters'),
+                'correction_requests_per_month' => (int) config('attendance.default_correction_requests_per_month'),
             ]);
         } catch (UniqueConstraintViolationException) {
             return self::query()->findOrFail(self::SINGLETON_ID);

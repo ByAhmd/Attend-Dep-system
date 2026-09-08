@@ -35,7 +35,11 @@ final class AttendanceSettingResource extends Resource
     // is legible as the current one from the shape alone.
     protected static string|BackedEnum|null $activeNavigationIcon = Heroicon::MapPin;
 
-    protected static ?int $navigationSort = 2;
+    // Third in the System group, behind Employees and Job titles. The sort
+    // moved from 2 when the job-title list took that place: two entries
+    // sharing a sort leaves their order to registration order in the panel
+    // provider, which is a detail no reader of this file can see.
+    protected static ?int $navigationSort = 3;
 
     public static function getNavigationGroup(): NavigationGroup
     {

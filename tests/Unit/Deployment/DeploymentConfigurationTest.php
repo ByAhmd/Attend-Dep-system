@@ -223,4 +223,46 @@ final class DeploymentConfigurationTest extends TestCase
         $this->assertStringContainsString('document root', $deployment);
         $this->assertStringContainsString('app:create-admin', $deployment);
     }
+
+    /**
+     * A deploy log is written by a machine and read by whoever asks for it.
+     *
+     * The verbose form of app:super-admin prints the configured address, the
+     * display name and the account's role and status, because a person at a
+     * terminal asked it who that account is. A deploy script asks a different
+     * question - is one configured at all - and the --check form answers that
+     * one with a verdict and no value, so nothing about the account is
+     * written anywhere a build log can be read from.
+     */
+    #[Test]
+    public function the_deploy_script_never_prints_who_the_super_administrator_is(): void
+    {
+        $script = (string) file_get_contents(base_path('scripts/deploy.sh'));
+
+        $this->assertStringNotContainsString('app:super-admin || true', $script);
+        $this->assertStringContainsString('app:super-admin --check', $script);
+    }
+
+    /**
+     * The employee's own error pages.
+     *
+     * Laravel's are `<html lang="en">` with no direction, and their message
+     * is whatever the exception carried - an English sentence written for a
+     * developer. A stale attachment link is an ordinary way for a signed-in
+     * employee to reach one, so the pages have to exist here, in both
+     * languages, and they must not depend on the Vite build: the failure
+     * page is the last thing that should need the thing that failed.
+     */
+    #[Test]
+    public function the_error_pages_are_the_products_own_and_need_no_build(): void
+    {
+        foreach (['403', '404', 'layout'] as $view) {
+            $this->assertFileExists(base_path("resources/views/errors/{$view}.blade.php"));
+        }
+
+        $layout = (string) file_get_contents(base_path('resources/views/errors/layout.blade.php'));
+
+        $this->assertStringNotContainsString('@vite', $layout);
+        $this->assertStringContainsString('dir=', $layout);
+    }
 }

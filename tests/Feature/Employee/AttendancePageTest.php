@@ -519,6 +519,85 @@ final class AttendancePageTest extends TestCase
     }
 
     /**
+     * The band reaches both forms and the requests screen, and it sits
+     * under the card that carries the morning's button.
+     */
+    #[Test]
+    public function the_quick_action_band_offers_both_forms_and_the_requests_screen(): void
+    {
+        $this->configureCompanyLocation();
+        $this->freezeClock();
+        $this->signInEmployee();
+
+        $component = Livewire::test(Attendance::class);
+
+        $component
+            ->assertSee(__('requests.tiles.heading'))
+            ->assertSee(__('requests.tiles.correction'))
+            ->assertSee(__('requests.tiles.leave'))
+            ->assertSee(__('requests.tiles.my_requests'))
+            ->assertActionVisible('requestCorrection')
+            ->assertActionVisible('requestLeave')
+            ->assertOk();
+
+        $html = $component->html();
+
+        $this->assertLessThan(
+            strpos($html, __('requests.tiles.heading')),
+            strpos($html, __('attendance.actions.check_in')),
+            'The tiles must never come between a thumb and the button this page exists for.',
+        );
+    }
+
+    #[Test]
+    public function the_band_reports_how_many_requests_are_still_unanswered(): void
+    {
+        $this->configureCompanyLocation();
+        $this->freezeClock();
+        $employee = $this->signInEmployee();
+
+        Livewire::test(Attendance::class)
+            ->assertSee(__('requests.tiles.badge_no_pending'));
+
+        $this->correctionRequest($employee, on: CarbonImmutable::parse('2026-09-01'));
+        $this->leaveRequest($employee, CarbonImmutable::parse('2026-09-20'));
+
+        Livewire::test(Attendance::class)
+            ->assertSee(__('requests.tiles.badge_pending', ['count' => 2]));
+    }
+
+    /**
+     * A time an administrator granted is marked as such on the employee's
+     * own timeline: this screen may never present a corrected moment as one
+     * the location service verified.
+     */
+    #[Test]
+    public function a_corrected_session_is_marked_on_todays_timeline(): void
+    {
+        $this->configureCompanyLocation();
+        $this->freezeClock('2026-09-02 18:00:00');
+        $employee = $this->signInEmployee();
+
+        $session = $this->attendanceSession($employee, '08:00', '12:30');
+
+        Livewire::test(Attendance::class)
+            ->assertOk()
+            ->assertDontSee(__('attendance.badges.corrected'));
+
+        $request = $this->correctionRequest($employee, $session, null, '17:00');
+
+        $session->forceFill([
+            'original_check_out_at' => $session->check_out_at,
+            'check_out_at' => $session->check_out_at?->setTimeFromTimeString('17:00'),
+            'check_out_correction_id' => $request->id,
+        ])->save();
+
+        Livewire::test(Attendance::class)
+            ->assertOk()
+            ->assertSee(__('attendance.badges.corrected'));
+    }
+
+    /**
      * Buttons rendered with the disabled attribute. The Alpine binding
      * (x-bind:disabled) and Filament's wire:loading.attr="disabled" also
      * contain the word, so only a bare attribute preceded by whitespace
@@ -536,12 +615,26 @@ final class AttendancePageTest extends TestCase
      */
     private function buttonLabelsInOrder(string $html): array
     {
-        preg_match_all('/<button\b[^>]*>(.*?)<\/button>/s', $html, $buttons);
+        preg_match_all('/<button\b([^>]*)>(.*?)<\/button>/s', $html, $buttons, PREG_SET_ORDER);
 
-        return array_values(array_filter(array_map(
-            static fn (string $button): string => trim(strip_tags($button)),
-            $buttons[1],
-        ), static fn (string $label): bool => $label !== ''));
+        $labels = [];
+
+        foreach ($buttons as [, $attributes, $contents]) {
+            // The two attendance actions are the buttons that send a
+            // location reading; the quick-action tiles below them mount a
+            // modal instead and are not part of this ordering.
+            if (! str_contains($attributes, 'submit(')) {
+                continue;
+            }
+
+            $label = trim(strip_tags($contents));
+
+            if ($label !== '') {
+                $labels[] = $label;
+            }
+        }
+
+        return $labels;
     }
 
     private function signInEmployee(): User

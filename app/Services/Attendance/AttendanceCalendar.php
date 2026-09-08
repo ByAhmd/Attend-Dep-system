@@ -26,4 +26,18 @@ final readonly class AttendanceCalendar
     {
         return $this->now()->startOfDay();
     }
+
+    /**
+     * The first instant of the current calendar month, in the application
+     * timezone.
+     *
+     * Gregorian, because that is Carbon's calendar and therefore what the
+     * interface has to say out loud in Arabic: a reader told "the allowance
+     * resets each month" would otherwise reasonably assume the Hijri one,
+     * and be counting a different thirty days from the system.
+     */
+    public function monthStart(): CarbonImmutable
+    {
+        return $this->now()->startOfMonth();
+    }
 }

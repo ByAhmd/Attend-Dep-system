@@ -6,7 +6,10 @@ namespace App\Providers\Filament;
 
 use App\Filament\Auth\ResetPassword;
 use App\Filament\Employee\Pages\Attendance;
+use App\Filament\Employee\Pages\Requests;
 use App\Filament\Employee\Widgets\AttendanceHistoryWidget;
+use App\Filament\Employee\Widgets\MyCorrectionRequestsWidget;
+use App\Filament\Employee\Widgets\MyLeaveRequestsWidget;
 use App\Providers\Filament\Concerns\ConfiguresPanel;
 use App\Support\Filament\PanelAccess;
 use App\Support\Filament\PanelSwitchMenuItems;
@@ -15,8 +18,9 @@ use Filament\PanelProvider;
 use Filament\Support\Enums\Width;
 
 /**
- * The employee panel at the site root: sign in, then one screen - today's
- * status, Check In, Check Out, history.
+ * The employee panel at the site root: sign in, then today's status, Check
+ * In, Check Out and history - and, one tap away, the requests the employee
+ * has sent and what became of them.
  *
  * A Filament panel rather than hand-written Blade because it supplies the
  * login page, session handling, CSRF, rate limiting and a mobile layout
@@ -53,8 +57,12 @@ final class EmployeePanelProvider extends PanelProvider
                 // A phone-width card even on a desktop: the screen is two
                 // buttons and a status, and stretching it adds nothing.
                 ->maxContentWidth(Width::Medium)
-                ->pages([Attendance::class])
-                ->widgets([AttendanceHistoryWidget::class]),
+                ->pages([Attendance::class, Requests::class])
+                ->widgets([
+                    AttendanceHistoryWidget::class,
+                    MyCorrectionRequestsWidget::class,
+                    MyLeaveRequestsWidget::class,
+                ]),
         );
     }
 }

@@ -152,7 +152,8 @@ final class AttendanceSchemaTest extends TestCase
 
             $this->fail('A partial check-out was accepted by the attendances table.');
         } catch (QueryException) {
-            // attendances_check_out_complete refused the half-written row.
+            // attendances_check_out_recorded_or_corrected refused the
+            // half-written row.
         }
 
         $stored = $attendance->fresh();

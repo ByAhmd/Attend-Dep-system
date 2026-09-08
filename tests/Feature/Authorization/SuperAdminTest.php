@@ -242,6 +242,44 @@ final class SuperAdminTest extends TestCase
             ->assertSuccessful();
     }
 
+    #[Test]
+    public function the_check_form_confirms_the_setting_without_naming_the_account(): void
+    {
+        // The deployment script runs this form, and its output is a log
+        // rather than a terminal: the exit code is all an unattended check
+        // needs, and the address is the part that must not travel.
+        $this->owner();
+
+        $this->artisan('app:super-admin', ['--check' => true])
+            ->expectsOutputToContain('Super administrator: configured.')
+            ->doesntExpectOutputToContain(self::OWNER_EMAIL)
+            ->assertSuccessful();
+    }
+
+    #[Test]
+    public function the_check_form_fails_on_the_misconfiguration_without_printing_the_address(): void
+    {
+        config(['admin.super_admin_email' => 'typo@company.test']);
+
+        $this->artisan('app:super-admin', ['--check' => true])
+            ->expectsOutputToContain('MISCONFIGURED')
+            ->doesntExpectOutputToContain('typo@company.test')
+            ->assertFailed();
+    }
+
+    #[Test]
+    public function the_check_form_reports_nothing_configured_and_still_succeeds(): void
+    {
+        // Same exit code as the verbose form: a blank setting is a thing to
+        // read and fix, never a reason to fail a deployment.
+        config(['admin.super_admin_email' => null]);
+
+        $this->artisan('app:super-admin', ['--check' => true])
+            ->expectsOutputToContain('Super administrator: not configured')
+            ->doesntExpectOutputToContain('@')
+            ->assertSuccessful();
+    }
+
     /**
      * The account named by SUPER_ADMIN_EMAIL, created with whatever role and
      * status the test wants to see ignored.

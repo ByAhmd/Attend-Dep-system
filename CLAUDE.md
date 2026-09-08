@@ -6,8 +6,21 @@ and the server accepts it only when the device is within the configured radius
 (default **150 m**) of the company's registered location. An administrator manages
 employees, reads attendance, and configures the company location and radius.
 
-**That is the whole business scope.** No payroll, leave, shifts, departments,
-notifications, messaging, reports beyond the attendance list, API, or multi-company.
+From the same screen an employee may also ask for a recorded time to be **corrected**
+and may **request leave**; an administrator approves or rejects each with a note. An
+account carries a **job title** and an **employment type**, which are descriptions of
+a person and never permissions.
+
+**That is the whole business scope.** No payroll; no work schedules or shifts, and
+therefore no lateness, permitted lateness, overtime or hour accrual; no departments or
+teams, and therefore no team leave; no biometric hardware and none of its vocabulary;
+no announcements, messaging or push; no profile editing or avatars, and the one file
+anybody may upload is the document supporting a leave request; no reports beyond the
+attendance list; no API; no multi-company; no second allowed location. Each of those
+absences is a decision, not an omission: Makani says only what it can prove, and a
+figure subtracted from a schedule nobody recorded is an accusation the system cannot
+support.
+
 Technical work needed to make the above reliable and secure is in scope; new business
 features are not.
 
@@ -47,32 +60,44 @@ Two Filament panels, explicit registration (no directory discovery):
 
 | Panel | Path | Who | Contents |
 |---|---|---|---|
-| `employee` (default) | `/` (`/login`, `/`) | every active account | `App\Filament\Employee\Pages\Attendance` + history widget |
-| `admin` | `/admin` | administrators | Employees, Attendance records, Rejected attempts, Attendance settings, Dashboard |
+| `employee` (default) | `/` (`/login`, `/`, `/requests`) | every active account | `App\Filament\Employee\Pages\Attendance` + history widget; `Pages\Requests` + the two request widgets |
+| `admin` | `/admin` | administrators | Employees, Job titles, Attendance records, Rejected attempts, Presence pings, Correction requests, Leave requests, Attendance settings, Dashboard |
 
 Layers, exactly as in the ZonKSA/StockFlow projects:
 
 ```
-app/Enums/                 UserRole, UserStatus, AttendanceStatus, AttendanceAction,
-                           AttendanceRejectionReason, NavigationGroup — label() + options();
+app/Enums/                 UserRole, UserStatus, EmploymentType, AttendanceStatus,
+                           AttendanceAction, AttendanceRejectionReason, RequestStatus,
+                           CorrectionReason, LeaveType, NavigationGroup — label() +
+                           options(); CorrectionRefusalReason and LeaveRefusalReason
+                           carry message() and no label(), so the parity test's glob
+                           does not find them and must not be told to;
                            Locale (ar/en, nativeLabel(), other(), current())
 app/Support/Geo/           Coordinates, LocationReading (validated value objects), Meters,
                            GoogleMapsLink (map URL for a stored position)
 app/Support/Filament/      PanelAccess — which panel a user may enter;
                            LanguageMenuItems — the language entry of the user menu
 app/Support/Attendance/    SessionDuration — hours and minutes, as Meters is for distance
-app/Data/Attendance/       LocationVerification — the backend verdict on one reading
+app/Data/Attendance/       LocationVerification — the backend verdict on one reading;
+                           CorrectionDraft — what the employee stated on the form
+app/Data/Leave/            LeaveDraft
 app/Services/Geolocation/  DistanceCalculator (haversine), LocationReadingValidator
 app/Services/Attendance/   AttendanceCalendar, LocationVerifier, AttendanceWorkflow,
                            AttendanceDashboardMetrics, AttendanceDaySummary (one
-                           employee's day as its sessions), PresencePingRecorder
+                           employee's day as its sessions), PresencePingRecorder,
+                           CorrectionQuota, AttendanceCorrectionWorkflow
+app/Services/Leave/        LeaveRequestWorkflow, LeaveConflicts
+app/Services/Requests/     RequestQueueMetrics, EmployeeRequestCounts
 app/Services/Users/        EmployeeInvitationService + Invitation (url, emailed)
 app/Notifications/         EmployeeInvitationNotification
 app/Listeners/             ActivateInvitedEmployee — Pending becomes Active on first
                            password set; discovered automatically from app/Listeners
-app/Exceptions/Attendance/ AttendanceRejectedException (reason enum + verification)
-app/Models/                User, Attendance (one SESSION), AttendanceRejection,
-                           AttendanceSetting, PresencePing
+app/Exceptions/Attendance/ AttendanceRejectedException (reason enum + verification),
+                           AttendanceCorrectionRefusedException
+app/Exceptions/Leave/      LeaveRequestRefusedException
+app/Models/                User, JobTitle, Attendance (one SESSION), AttendanceRejection,
+                           AttendanceCorrection, LeaveRequest, AttendanceSetting,
+                           PresencePing
 app/Policies/              one per model; employees never write attendance
 app/Http/Middleware/       EnsureAccountIsActive (signs out deactivated accounts),
                            SetLocale (applies the language cookie; persistent for Livewire)
@@ -119,10 +144,52 @@ The Filament layer validates input (`LocationReadingValidator`), calls
   distance, stamps the time, and stores what it saw. Client distance is feedback only.
 - Rejections for `insufficient_accuracy` / `outside_allowed_area` are recorded in
   `attendance_rejections` (audit); state-rule rejections are not.
-- Accounts are deactivated, never deleted; attendance rows are never edited or deleted
-  from any interface. An administrator cannot change their own role or status.
-- Company coordinates and radius live only in `attendance_settings` (single row,
-  `AttendanceSetting::current()`); the default radius 150 is in `config/attendance.php`.
+- Accounts are deactivated, never deleted. Attendance rows are never deleted, and no
+  interface edits one: `AttendancePolicy` refuses create, update and delete to
+  everybody, there is no attendance form, and `AttendanceResource` registers one page.
+  A row is amended by exactly one other thing — `AttendanceCorrectionWorkflow`, acting
+  on a request an administrator approved — and even then what the device recorded is
+  kept: the original moment moves into `original_check_in_at` / `original_check_out_at`
+  before the corrected one is written, and the coordinates, accuracy and distance of
+  the original reading are never rewritten. The row carries the id of the request that
+  amended it, so a corrected time is always distinguishable from a location-verified
+  one, in the database and on every screen that prints it. An administrator cannot
+  change their own role or status.
+- A correction request names a date and a wall-clock time, never a timestamp. The
+  server combines them in Asia/Riyadh **at approval**, and refuses a moment in the
+  future measured at approval time — the row is written when it is approved, so that is
+  the moment that must not be in the future. Riyadh is +03 all year, so a wall-clock
+  time can never be ambiguous; that assumption is the one that would break if this
+  system ever ran elsewhere.
+- At most one **pending** correction per employee per day, enforced by
+  `unique(user_id, pending_attendance_date)` on a virtual column. Corrections are
+  rationed by `attendance_settings.correction_requests_per_month`, counted over requests
+  **submitted** in the current Riyadh month. The count is derived: there is nothing to
+  reset, no stored counter and no cron. Zero switches corrections off.
+- A correction that would leave a day with two open sessions, or with two overlapping
+  sessions, is refused by the service with its own sentence in both languages, after
+  locking the whole employee-day. The unique index is a backstop for a concurrent tap,
+  never the messenger for an administrator's deliberate act.
+- Leave is a request over a date range with a type, a written reason and an
+  administrator's decision. It records what was agreed; it does not suppress a check-in,
+  close or reopen a session, or excuse a missing one, and no screen may imply otherwise.
+- A leave request may carry **one** supporting document, and that is the only file this
+  product accepts from anybody. Its path, original name, byte size and MIME type are
+  written together or not at all, which `leave_requests_attachment_complete_check`
+  enforces. It lives on a private disk, never under `public/`; it is reached only through
+  a route that asks the same policy as the request it belongs to, so the path is never a
+  capability; the browser sends a file and never a path; and it is deleted with the
+  request. The columns exist ahead of that machinery — until it lands they stay NULL and
+  nothing reads them, which is deliberate and not dead code.
+- A request belonging to a soft-deleted account leaves the approval queue and comes back
+  if the account is restored. This is a scope over live state, not a column stamped on
+  delete.
+- Nobody decides their own request, administrators included. Approving a correction or a
+  leave request is an ordinary administrator's power; the super administrator's reserved
+  acts stay exactly two. Nothing anywhere in the interface says which account that is.
+- Company coordinates, radius and the monthly correction allowance live only in
+  `attendance_settings` (single row, `AttendanceSetting::current()`); the default radius
+  150 and the default allowance 3 are in `config/attendance.php`.
 
 ---
 

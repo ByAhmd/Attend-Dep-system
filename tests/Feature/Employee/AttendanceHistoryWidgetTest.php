@@ -6,6 +6,7 @@ namespace Tests\Feature\Employee;
 
 use App\Filament\Employee\Widgets\AttendanceHistoryWidget;
 use App\Services\Attendance\AttendanceCalendar;
+use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -107,5 +108,61 @@ final class AttendanceHistoryWidgetTest extends TestCase
             ->assertSee(__('enums.attendance_status.checked_in'))
             ->assertSee(__('enums.attendance_status.checked_out'))
             ->assertSee(__('attendance.placeholders.no_check_out'));
+    }
+
+    /**
+     * A moment the device recorded and an administrator then moved reads as
+     * corrected here, with the device's own time beneath it - the same two
+     * sentences the administrator's list prints, on the screen belonging to
+     * the person with the most reason to know the difference.
+     */
+    #[Test]
+    public function a_corrected_time_says_so_and_names_what_the_device_recorded(): void
+    {
+        $this->freezeRiyadhClock('2026-09-15 18:00:00');
+
+        $employee = $this->makeEmployee();
+        $day = CarbonImmutable::parse('2026-09-14');
+        $session = $this->attendanceSession($employee, '08:00', '12:30', $day);
+        $request = $this->correctionRequest($employee, $session, null, '17:00', $day);
+
+        $session->forceFill([
+            'original_check_out_at' => $session->check_out_at,
+            'check_out_at' => $day->setTimeFromTimeString('17:00'),
+            'check_out_correction_id' => $request->id,
+        ])->save();
+
+        $this->actingAs($employee);
+
+        Livewire::test(AttendanceHistoryWidget::class)
+            ->assertOk()
+            ->assertSee(__('attendance.badges.corrected_from', ['time' => '12:30']))
+            ->assertDontSee(__('attendance.badges.recorded_manually'));
+    }
+
+    /**
+     * A moment no device ever recorded is a different claim from a moment
+     * that was moved, and it gets a different word.
+     */
+    #[Test]
+    public function a_moment_the_device_never_recorded_reads_as_recorded_by_hand(): void
+    {
+        $this->freezeRiyadhClock('2026-09-15 18:00:00');
+
+        $employee = $this->makeEmployee();
+        $day = CarbonImmutable::parse('2026-09-14');
+        $session = $this->attendanceSession($employee, '08:00', null, $day);
+        $request = $this->correctionRequest($employee, $session, null, '17:00', $day);
+
+        $session->forceFill([
+            'check_out_at' => $day->setTimeFromTimeString('17:00'),
+            'check_out_correction_id' => $request->id,
+        ])->save();
+
+        $this->actingAs($employee);
+
+        Livewire::test(AttendanceHistoryWidget::class)
+            ->assertOk()
+            ->assertSee(__('attendance.badges.recorded_manually'));
     }
 }

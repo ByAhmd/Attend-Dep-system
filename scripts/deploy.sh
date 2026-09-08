@@ -117,14 +117,17 @@ echo "==> Rebuilding caches"
 "${PHP_CMD[@]}" artisan event:cache
 "${PHP_CMD[@]}" artisan filament:optimize
 
-# Says who the super administrator is, and warns when SUPER_ADMIN_EMAIL is
-# blank or names no account. Never fails the deployment: the site is
+# Confirms a super administrator is configured and names an account, and
+# warns when it does not. --check prints a verdict and never a value: this
+# script's stdout is streamed into a build log on a public repository, and
+# the address it would otherwise print designates the one account nobody
+# can deactivate, demote or delete. Never fails the deployment: the site is
 # already migrated by this point and a missing setting is something to
-# read and fix, not a reason to leave the application down. It matters
-# because with the setting blank nobody can delete an account or change
-# a role - the two powers reserved for that address.
+# read and fix, not a reason to leave it down. It matters because with the
+# setting blank nobody can delete an account or change a role - the two
+# powers reserved for that address.
 echo "==> Super administrator"
-"${PHP_CMD[@]}" artisan app:super-admin || true
+"${PHP_CMD[@]}" artisan app:super-admin --check || true
 
 echo "==> Live"
 "${PHP_CMD[@]}" artisan up

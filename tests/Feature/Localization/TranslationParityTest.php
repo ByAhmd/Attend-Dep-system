@@ -8,7 +8,13 @@ use App\Data\Attendance\LocationVerification;
 use App\Enums\AttendanceAction;
 use App\Enums\AttendanceRejectionReason;
 use App\Enums\AttendanceStatus;
+use App\Enums\CorrectionReason;
+use App\Enums\CorrectionRefusalReason;
+use App\Enums\EmploymentType;
+use App\Enums\LeaveRefusalReason;
+use App\Enums\LeaveType;
 use App\Enums\NavigationGroup;
+use App\Enums\RequestStatus;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use Illuminate\Support\Facades\App;
@@ -77,8 +83,22 @@ final class TranslationParityTest extends TestCase
     {
         // The discovery below walks app/Enums; this pins what it must find
         // so an empty directory glob could never pass silently.
+        //
+        // CorrectionRefusalReason and LeaveRefusalReason are deliberately
+        // absent: they carry message() and no label(), so the glob does not
+        // find them, and the test below covers them instead.
         $this->assertEqualsCanonicalizing(
-            [UserRole::class, UserStatus::class, AttendanceStatus::class, AttendanceAction::class, AttendanceRejectionReason::class],
+            [
+                UserRole::class,
+                UserStatus::class,
+                AttendanceStatus::class,
+                AttendanceAction::class,
+                AttendanceRejectionReason::class,
+                EmploymentType::class,
+                RequestStatus::class,
+                CorrectionReason::class,
+                LeaveType::class,
+            ],
             $this->labelledEnums(),
         );
     }
@@ -126,6 +146,38 @@ final class TranslationParityTest extends TestCase
         $this->assertStringContainsString('213', AttendanceRejectionReason::OutsideAllowedArea->message($verification));
         $this->assertStringContainsString('150', AttendanceRejectionReason::OutsideAllowedArea->message($verification));
         $this->assertStringContainsString('650', AttendanceRejectionReason::InsufficientAccuracy->message($verification));
+    }
+
+    /**
+     * Every refusal an employee can be handed reads as a sentence.
+     *
+     * These two enums are the only ones that resolve through message()
+     * rather than label(), so the glob above cannot see them and they need
+     * their own pass. A missing key here is not a blank screen: __() hands
+     * back the key path, so the employee would be told
+     * "corrections.refusals.quota_exhausted" and nothing else.
+     */
+    #[Test]
+    #[DataProvider('locales')]
+    public function every_refusal_has_a_sentence_for_the_employee(string $locale): void
+    {
+        App::setLocale($locale);
+
+        $refusals = [...CorrectionRefusalReason::cases(), ...LeaveRefusalReason::cases()];
+
+        $this->assertNotSame([], $refusals);
+
+        foreach ($refusals as $refusal) {
+            $message = $refusal->message();
+
+            $this->assertNotSame('', $message, "{$refusal->name} has an empty message in {$locale}");
+            $this->assertStringNotContainsString('corrections.refusals.', $message, "{$refusal->name} has no message in {$locale}");
+            $this->assertStringNotContainsString('leave.refusals.', $message, "{$refusal->name} has no message in {$locale}");
+            $this->assertDoesNotMatchRegularExpression('/:[a-z_]+/', $message, "{$refusal->name} left a placeholder unfilled in {$locale}");
+        }
+
+        // The one refusal that carries a figure names the real limit.
+        $this->assertStringContainsString('90', LeaveRefusalReason::TooLong->message());
     }
 
     #[Test]

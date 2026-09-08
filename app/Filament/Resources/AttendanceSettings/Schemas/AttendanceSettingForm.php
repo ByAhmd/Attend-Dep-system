@@ -20,14 +20,20 @@ use Filament\Support\Icons\Heroicon;
  * verifier would later choke on.
  *
  * This is a screen somebody visits perhaps twice, to paste two numbers
- * copied out of a map, so it is laid out as two instructions rather than
- * three inputs: each section states its question beside the fields that
- * answer it - a pin for where, a viewfinder for how close - which gives
- * the sentence about where the numbers come from the width to be read
- * instead of the small print under a box. Each coordinate carries a worked
- * example as its placeholder, because the commonest way to get this wrong
- * is to paste the pair the other way round, and 46 where a latitude
+ * copied out of a map, so it is laid out as instructions rather than
+ * inputs: each section states its question beside the fields that answer
+ * it - a pin for where, a viewfinder for how close, a pencil for how often
+ * a mistake may be corrected - which gives each sentence the width to be
+ * read instead of the small print under a box. Each coordinate carries a
+ * worked example as its placeholder, because the commonest way to get this
+ * wrong is to paste the pair the other way round, and 46 where a latitude
  * belongs is only obvious next to a latitude that looks like one.
+ *
+ * The correction allowance is here rather than in config because it is a
+ * business policy the owner changes without an SSH session, and until this
+ * field existed the column could only be set with SQL. Zero is a real
+ * setting, which is why the helper says out loud what it does: an empty
+ * box would look like "unlimited" to a reader who had not been told.
  */
 final class AttendanceSettingForm
 {
@@ -36,6 +42,10 @@ final class AttendanceSettingForm
         $bounds = config('attendance.radius_bounds');
         $minRadius = (int) $bounds['min'];
         $maxRadius = (int) $bounds['max'];
+
+        $quotaBounds = config('attendance.correction_quota_bounds');
+        $minQuota = (int) $quotaBounds['min'];
+        $maxQuota = (int) $quotaBounds['max'];
 
         return $schema
             ->components([
@@ -107,6 +117,32 @@ final class AttendanceSettingForm
                     // Half width, so the metre suffix Filament pins to the
                     // far end of the field lands beside the three digits it
                     // belongs to rather than a hand's width away from them.
+                    ->columns(2),
+
+                Section::make(__('settings.sections.corrections'))
+                    ->icon(Heroicon::OutlinedPencilSquare)
+                    ->description(__('settings.helpers.correction_requests_per_month'))
+                    ->aside()
+                    ->schema([
+                        TextInput::make('correction_requests_per_month')
+                            ->label(__('settings.fields.correction_requests_per_month'))
+                            ->numeric()
+                            ->integer()
+                            ->required()
+                            ->minValue($minQuota)
+                            ->maxValue($maxQuota)
+                            ->default((int) config('attendance.default_correction_requests_per_month'))
+                            ->validationMessages([
+                                'required' => __('settings.validation.correction_quota_required'),
+                                'numeric' => __('settings.validation.correction_quota_integer'),
+                                'integer' => __('settings.validation.correction_quota_integer'),
+                                'min' => __('settings.validation.correction_quota_min'),
+                                'max' => __('settings.validation.correction_quota_max', ['max' => $maxQuota]),
+                            ]),
+                    ])
+                    // Half width for the same reason as the radius: a box
+                    // that holds at most two digits should not be as wide
+                    // as the sentence explaining it.
                     ->columns(2),
             ])
             ->columns(1);

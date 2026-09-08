@@ -6,9 +6,15 @@ namespace Tests\Feature\Filament;
 
 use App\Filament\Resources\Attendances\AttendanceResource;
 use App\Filament\Resources\Attendances\Pages\ListAttendances;
+use App\Models\Attendance;
+use App\Models\AttendanceCorrection;
+use App\Models\User;
 use App\Services\Attendance\AttendanceCalendar;
+use App\Services\Attendance\AttendanceCorrectionWorkflow;
 use Carbon\CarbonImmutable;
 use Filament\Facades\Filament;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
 use PHPUnit\Framework\Attributes\Test;
@@ -22,14 +28,24 @@ use Tests\TestCase;
  * filters, the grouping and the time-inside summary all have to keep
  * meaning something when one person appears three times on one date.
  *
- * Read-only is the point. The workflow is the only writer, so the resource
- * has one page and the create route must not exist at all - not be
- * forbidden, not exist.
+ * Read-only is the point. AttendanceWorkflow is the only writer and
+ * AttendanceCorrectionWorkflow the only amender, so the resource has one
+ * page and the create route must not exist at all - not be forbidden, not
+ * exist.
+ *
+ * An amended row is the other half of that promise. A time an approved
+ * correction supplied must be distinguishable from one the location service
+ * verified, everywhere it is printed and by three signals at once, or the
+ * list stops being evidence of anything. The corrected cases here are
+ * produced by the real workflow rather than written by hand, so what the
+ * screen shows is what an approval actually leaves behind.
  */
 final class AttendanceResourceTest extends TestCase
 {
     use CreatesAttendanceFixtures;
     use RefreshDatabase;
+
+    private User $admin;
 
     protected function setUp(): void
     {
@@ -37,12 +53,51 @@ final class AttendanceResourceTest extends TestCase
 
         Filament::setCurrentPanel('admin');
 
-        $this->actingAs($this->makeAdmin());
+        $this->admin = $this->makeAdmin();
+
+        $this->actingAs($this->admin);
     }
 
     private function today(): CarbonImmutable
     {
         return app(AttendanceCalendar::class)->today();
+    }
+
+    /**
+     * The day as an approved correction leaves it.
+     *
+     * Goes through the workflow rather than writing the columns, so a test
+     * that reads the screen is reading the real result of an approval - and
+     * the CHECK constraints on the table get a say in every fixture.
+     */
+    private function approve(AttendanceCorrection $request): Attendance
+    {
+        return app(AttendanceCorrectionWorkflow::class)->approve($request, $this->admin);
+    }
+
+    /**
+     * One column of the list, bound to one row.
+     *
+     * The word a corrected time carries can be read out of the rendered
+     * page, but its glyph and its colour cannot: both are drawn as inline
+     * SVG and a colour token, so asking the column itself is the only way
+     * to prove all three signals are there.
+     */
+    private function listColumn(string $name, Attendance $record): TextColumn
+    {
+        $page = Livewire::test(ListAttendances::class)->instance();
+
+        if (! $page instanceof ListAttendances) {
+            $this->fail('The attendance list did not mount.');
+        }
+
+        $column = $page->getTable()->getColumn($name);
+
+        if (! $column instanceof TextColumn) {
+            $this->fail("The attendance list has no [{$name}] text column.");
+        }
+
+        return $column->record($record);
     }
 
     #[Test]
@@ -246,5 +301,187 @@ final class AttendanceResourceTest extends TestCase
             ->assertTableActionDoesNotExist('edit')
             ->assertTableActionDoesNotExist('delete')
             ->assertTableBulkActionDoesNotExist('delete');
+    }
+
+    #[Test]
+    public function a_moved_time_is_marked_corrected_by_word_glyph_and_colour_at_once(): void
+    {
+        $this->freezeRiyadhClock('2026-09-08 18:00');
+
+        $sara = $this->makeEmployee('sara@company.test');
+        $session = $this->attendanceSession($sara, '09:15', '17:00');
+
+        $this->approve($this->correctionRequest($sara, $session, checkIn: '08:00'));
+
+        $session->refresh();
+
+        Livewire::test(ListAttendances::class)
+            ->assertCanSeeTableRecords([$session])
+            // The word, so the mark survives greyscale and a screen reader.
+            ->assertTableColumnHasDescription(
+                'check_in_at',
+                __('attendance.badges.corrected'),
+                $session,
+                position: 'above',
+            )
+            // What the device recorded, under the time that replaced it.
+            ->assertTableColumnHasDescription(
+                'check_in_at',
+                __('attendance.badges.corrected_from', ['time' => '09:15']),
+                $session,
+            )
+            // The check-out was not touched, so it carries no mark at all.
+            ->assertTableColumnDoesNotHaveDescription(
+                'check_out_at',
+                __('attendance.badges.corrected'),
+                $session,
+                position: 'above',
+            );
+
+        // The glyph and the colour, the other two of the three signals.
+        $column = $this->listColumn('check_in_at', $session);
+
+        $this->assertSame(Heroicon::OutlinedPencilSquare, $column->getIcon($session->check_in_at));
+        $this->assertSame('info', $column->getColor($session->check_in_at));
+    }
+
+    #[Test]
+    public function a_time_the_device_never_recorded_says_it_was_recorded_by_hand(): void
+    {
+        $this->freezeRiyadhClock('2026-09-08 18:00');
+
+        $sara = $this->makeEmployee('sara@company.test');
+
+        // No session that day at all: the approval manufactures one, and
+        // neither of its moments has a reading behind it.
+        $session = $this->approve($this->correctionRequest($sara));
+
+        Livewire::test(ListAttendances::class)
+            ->assertCanSeeTableRecords([$session])
+            ->assertTableColumnHasDescription(
+                'check_in_at',
+                __('attendance.badges.recorded_manually'),
+                $session,
+                position: 'above',
+            )
+            ->assertTableColumnHasDescription(
+                'check_out_at',
+                __('attendance.badges.recorded_manually'),
+                $session,
+                position: 'above',
+            )
+            // No device time to print under it: the word above already
+            // says the device recorded nothing.
+            ->assertTableColumnDoesNotHaveDescription(
+                'check_in_at',
+                __('attendance.badges.corrected_from', ['time' => '08:00']),
+                $session,
+            );
+    }
+
+    #[Test]
+    public function an_untouched_session_carries_no_mark(): void
+    {
+        $sara = $this->makeEmployee('sara@company.test');
+        $session = $this->attendanceSession($sara, '08:00', '17:00');
+
+        Livewire::test(ListAttendances::class)
+            ->assertTableColumnDoesNotHaveDescription(
+                'check_in_at',
+                __('attendance.badges.corrected'),
+                $session,
+                position: 'above',
+            )
+            ->assertTableColumnDoesNotHaveDescription(
+                'check_in_at',
+                __('attendance.badges.recorded_manually'),
+                $session,
+                position: 'above',
+            );
+
+        $column = $this->listColumn('check_in_at', $session);
+
+        $this->assertNull($column->getIcon($session->check_in_at));
+        $this->assertNull($column->getColor($session->check_in_at));
+    }
+
+    #[Test]
+    public function the_corrected_filter_narrows_the_list_to_the_amended_records(): void
+    {
+        $this->freezeRiyadhClock('2026-09-08 18:00');
+
+        $sara = $this->makeEmployee('sara@company.test');
+        $omar = $this->makeEmployee('omar@company.test');
+
+        $amended = $this->attendanceSession($sara, '09:15', '17:00');
+        $this->approve($this->correctionRequest($sara, $amended, checkIn: '08:00'));
+
+        $untouched = $this->attendanceSession($omar, '08:00', '17:00');
+
+        Livewire::test(ListAttendances::class)
+            ->assertCanSeeTableRecords([$amended, $untouched])
+            ->filterTable('corrected', true)
+            ->assertCanSeeTableRecords([$amended])
+            ->assertCanNotSeeTableRecords([$untouched])
+            ->filterTable('corrected', false)
+            ->assertCanSeeTableRecords([$untouched])
+            ->assertCanNotSeeTableRecords([$amended]);
+    }
+
+    #[Test]
+    public function the_record_modal_shows_what_the_device_recorded_and_who_approved_the_change(): void
+    {
+        $this->freezeRiyadhClock('2026-09-08 18:00');
+
+        $sara = $this->makeEmployee('sara@company.test');
+        $session = $this->attendanceSession($sara, '09:15', '17:00');
+
+        $this->approve($this->correctionRequest($sara, $session, checkIn: '08:00'));
+
+        Livewire::test(ListAttendances::class)
+            ->mountTableAction('view', $session->fresh())
+            ->assertMountedActionModalSee([
+                __('attendance.sections.correction'),
+                __('attendance.fields.original_check_in_at'),
+                '2026-09-08 09:15',
+                __('attendance.fields.corrected_by'),
+                $this->admin->name,
+                // The distance beside a corrected time is the one figure on
+                // this modal that could be read as a lie, so it says which
+                // moment it describes.
+                __('attendance.helpers.distance_describes_device_reading'),
+                __('attendance.admin_actions.open_correction'),
+            ]);
+    }
+
+    #[Test]
+    public function an_untouched_record_says_nothing_about_corrections(): void
+    {
+        $sara = $this->makeEmployee('sara@company.test');
+        $session = $this->attendanceSession($sara, '08:00', '17:00');
+
+        Livewire::test(ListAttendances::class)
+            ->mountTableAction('view', $session)
+            ->assertMountedActionModalDontSee(__('attendance.sections.correction'))
+            ->assertMountedActionModalDontSee(__('attendance.helpers.distance_describes_device_reading'));
+    }
+
+    #[Test]
+    public function a_moment_the_device_never_recorded_offers_no_map(): void
+    {
+        $this->freezeRiyadhClock('2026-09-08 18:00');
+
+        $sara = $this->makeEmployee('sara@company.test');
+
+        $session = $this->approve($this->correctionRequest($sara));
+
+        Livewire::test(ListAttendances::class)
+            ->mountTableAction('view', $session)
+            // A button that links nowhere is worse than no button.
+            ->assertMountedActionModalDontSee(__('attendance.admin_actions.open_map'))
+            ->assertMountedActionModalSee(__('attendance.placeholders.no_device_record'))
+            // And no sentence about a distance that does not exist: the
+            // helper qualifies a measurement, and nothing was measured.
+            ->assertMountedActionModalDontSee(__('attendance.helpers.distance_describes_device_reading'));
     }
 }

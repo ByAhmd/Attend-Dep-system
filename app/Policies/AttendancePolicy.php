@@ -9,10 +9,20 @@ use App\Models\User;
 
 /**
  * Attendance records are read by administrators and by their own employee,
- * and written by nobody: AttendanceWorkflow is the only writer, and it does
- * not go through the Gate. There is no create, update or delete for anyone,
- * because a record that can be edited afterwards is not a record of
- * attendance.
+ * and written through the Gate by nobody at all.
+ *
+ * Two services write this table and neither asks a policy. AttendanceWorkflow
+ * records a session from a verified location reading, and
+ * AttendanceCorrectionWorkflow amends one - only ever acting on a request an
+ * administrator approved, only ever after archiving the moment the device
+ * recorded, and never rewriting a coordinate. Nothing else writes here.
+ *
+ * So create, update and delete stay hard false for everybody, administrators
+ * included, and the answer does not soften now that corrections exist. There
+ * is no attendance form to reach and AttendanceResource registers one page.
+ * A record that an interface can edit is not a record of attendance; an
+ * amendment that carries the request, the approver and the original moment
+ * beside it still is.
  */
 final class AttendancePolicy
 {

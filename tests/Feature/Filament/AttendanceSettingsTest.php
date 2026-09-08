@@ -24,6 +24,12 @@ use Tests\TestCase;
  * What matters is not that the form saves, but that the workflow reads
  * what it saved: a radius changed here must move the line the next
  * check-in is judged against.
+ *
+ * The monthly correction allowance is the third value on this screen and
+ * the one with a boundary worth stating: zero is a real setting that
+ * switches correction requests off, so the form must accept it as readily
+ * as it accepts three, and must refuse a negative for the same reason it
+ * refuses thirty-two - both are numbers no month can mean.
  */
 final class AttendanceSettingsTest extends TestCase
 {
@@ -166,6 +172,93 @@ final class AttendanceSettingsTest extends TestCase
 
         Livewire::test(EditAttendanceSetting::class)
             ->assertActionDoesNotExist('delete');
+    }
+
+    #[Test]
+    public function the_correction_allowance_is_on_the_form_with_the_configured_default(): void
+    {
+        Livewire::test(EditAttendanceSetting::class)
+            ->assertSchemaStateSet([
+                'correction_requests_per_month' => (int) config('attendance.default_correction_requests_per_month'),
+            ])
+            ->assertSee(__('settings.sections.corrections'))
+            // The sentence that says what zero means, on the screen that
+            // can set it - not only in a docblock.
+            ->assertSee(__('settings.helpers.correction_requests_per_month'));
+    }
+
+    #[Test]
+    public function the_correction_allowance_can_be_changed_from_the_panel(): void
+    {
+        $this->configureCompanyLocation();
+
+        Livewire::test(EditAttendanceSetting::class)
+            ->fillForm(['correction_requests_per_month' => 7])
+            ->call('save')
+            ->assertHasNoFormErrors()
+            ->assertNotified(__('settings.notifications.saved'));
+
+        $this->assertSame(7, AttendanceSetting::current()->correction_requests_per_month);
+    }
+
+    #[Test]
+    public function both_ends_of_the_allowance_are_accepted(): void
+    {
+        $this->configureCompanyLocation();
+
+        $bounds = config('attendance.correction_quota_bounds');
+
+        // Zero is not an empty box: it switches correction requests off.
+        Livewire::test(EditAttendanceSetting::class)
+            ->fillForm(['correction_requests_per_month' => $bounds['min']])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame(0, AttendanceSetting::current()->correction_requests_per_month);
+
+        // One request for every day of the longest month.
+        Livewire::test(EditAttendanceSetting::class)
+            ->fillForm(['correction_requests_per_month' => $bounds['max']])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame(31, AttendanceSetting::current()->correction_requests_per_month);
+    }
+
+    #[Test]
+    public function an_allowance_outside_the_bounds_is_refused_in_the_settings_words(): void
+    {
+        $this->configureCompanyLocation();
+        $this->configureCorrectionQuota(3);
+
+        $bounds = config('attendance.correction_quota_bounds');
+
+        Livewire::test(EditAttendanceSetting::class)
+            ->fillForm(['correction_requests_per_month' => $bounds['max'] + 1])
+            ->call('save')
+            ->assertHasFormErrors(['correction_requests_per_month' => 'max'])
+            ->assertSee(__('settings.validation.correction_quota_max', ['max' => $bounds['max']]));
+
+        Livewire::test(EditAttendanceSetting::class)
+            ->fillForm(['correction_requests_per_month' => -1])
+            ->call('save')
+            ->assertHasFormErrors(['correction_requests_per_month' => 'min'])
+            ->assertSee(__('settings.validation.correction_quota_min'));
+
+        Livewire::test(EditAttendanceSetting::class)
+            ->fillForm(['correction_requests_per_month' => 2.5])
+            ->call('save')
+            ->assertHasFormErrors(['correction_requests_per_month' => 'integer'])
+            ->assertSee(__('settings.validation.correction_quota_integer'));
+
+        Livewire::test(EditAttendanceSetting::class)
+            ->fillForm(['correction_requests_per_month' => ''])
+            ->call('save')
+            ->assertHasFormErrors(['correction_requests_per_month' => 'required'])
+            ->assertSee(__('settings.validation.correction_quota_required'));
+
+        // Nothing was written by any of the four refusals.
+        $this->assertSame(3, AttendanceSetting::current()->correction_requests_per_month);
     }
 
     #[Test]

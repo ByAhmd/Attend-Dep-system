@@ -7,6 +7,11 @@ namespace App\Filament\Employee\Pages;
 use App\Enums\AttendanceAction;
 use App\Enums\AttendanceStatus;
 use App\Exceptions\Attendance\AttendanceRejectedException;
+use App\Filament\Employee\Actions\RequestCorrectionAction;
+use App\Filament\Employee\Actions\RequestLeaveAction;
+use App\Filament\Employee\Concerns\BuildsQuickActionTiles;
+use App\Filament\Employee\Concerns\ThrottlesPerAccount;
+use App\Filament\Employee\Contracts\ThrottlesRequests;
 use App\Filament\Employee\Widgets\AttendanceHistoryWidget;
 use App\Models\AttendanceSetting;
 use App\Models\User;
@@ -19,7 +24,7 @@ use App\Support\Attendance\SessionDuration;
 use App\Support\Geo\Meters;
 use Carbon\CarbonImmutable;
 use DanHarrin\LivewireRateLimiting\Exceptions\TooManyRequestsException;
-use DanHarrin\LivewireRateLimiting\WithRateLimiting;
+use Filament\Actions\Action;
 use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -42,10 +47,16 @@ use Illuminate\Validation\ValidationException;
  * (latitude, longitude, accuracy) and nothing else; every rule, timestamp
  * and distance comes from AttendanceWorkflow, and this class only turns its
  * answers into a sentence on the page.
+ *
+ * The two request forms are mounted here as modals and reached from a flat
+ * band of tiles below the card - never above it. Checking in is why this
+ * page exists, and a form nobody opens weekly must not compete with the
+ * button somebody presses every morning.
  */
-final class Attendance extends Page
+final class Attendance extends Page implements ThrottlesRequests
 {
-    use WithRateLimiting;
+    use BuildsQuickActionTiles;
+    use ThrottlesPerAccount;
 
     /**
      * The presence-ping throttle: attempts, and the window they are counted
@@ -161,6 +172,16 @@ final class Attendance extends Page
         app(PresencePingRecorder::class)->record($this->employee(), $location);
     }
 
+    public function requestCorrectionAction(): Action
+    {
+        return RequestCorrectionAction::make($this->employee());
+    }
+
+    public function requestLeaveAction(): Action
+    {
+        return RequestLeaveAction::make($this->employee());
+    }
+
     /**
      * @return array<class-string<Widget>>
      */
@@ -215,6 +236,7 @@ final class Attendance extends Page
             'actions' => $this->actionButtons($canCheckIn, $canCheckOut),
             // Milliseconds, because that is what the browser's timers take.
             'pingIntervalMs' => ((int) config('attendance.ping_interval_seconds')) * 1000,
+            'tiles' => $this->attendanceScreenTiles($employee),
         ];
     }
 
@@ -284,7 +306,7 @@ final class Attendance extends Page
      * has not finished, and saying so in a word keeps the timeline readable
      * without relying on the colour of its marker.
      *
-     * @return list<array{number: int, checkIn: string, checkOut: string, duration: string, isOpen: bool}>
+     * @return list<array{number: int, checkIn: string, checkOut: string, duration: string, isOpen: bool, isCorrected: bool}>
      */
     private function sessionRows(AttendanceDaySummary $day): array
     {
@@ -302,6 +324,10 @@ final class Attendance extends Page
                     : $this->formatTime($session->check_out_at),
                 'duration' => SessionDuration::format($session->durationInSeconds()),
                 'isOpen' => $session->isOpen(),
+                // Read off the row already loaded, so saying that a time was
+                // corrected costs nothing and the employee is never shown a
+                // moment this system verified by location when it did not.
+                'isCorrected' => $session->isCorrected(),
             ];
         }
 
@@ -378,27 +404,13 @@ final class Attendance extends Page
     }
 
     /**
-     * Throttle per account, not per address. The package keys on the
-     * client IP, and a whole office checks in from one public address at
-     * eight o'clock - the eleventh person would have been refused for the
-     * ten before them. Every request here is authenticated, so the account
-     * is the honest unit.
-     *
-     * @param  string|null  $method
-     * @param  string|null  $component
-     */
-    protected function getRateLimitKey($method, $component = null): string
-    {
-        $component ??= self::class;
-
-        return 'livewire-rate-limiter:'.sha1($component.'|'.$method.'|user:'.$this->employee()->id);
-    }
-
-    /**
      * The signed-in account. The auth middleware guarantees one; anything
      * else reaching here is a request that should never have been served.
+     *
+     * Protected and not public: a public method on a Livewire component is
+     * an endpoint the browser may call, and this one returns a person.
      */
-    private function employee(): User
+    protected function employee(): User
     {
         $user = Filament::auth()->user();
 

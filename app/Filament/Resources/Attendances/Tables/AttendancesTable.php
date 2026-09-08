@@ -11,15 +11,18 @@ use App\Services\Attendance\AttendanceCalendar;
 use App\Support\Attendance\SessionDuration;
 use App\Support\Geo\Meters;
 use BackedEnum;
+use Carbon\CarbonImmutable;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\DatePicker;
 use Filament\Support\Enums\FontFamily;
 use Filament\Support\Enums\FontWeight;
+use Filament\Support\Enums\IconPosition;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\Summarizers\Summarizer;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\TernaryFilter;
 use Filament\Tables\Grouping\Group;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -88,18 +91,58 @@ final class AttendancesTable
                     ->fontFamily(FontFamily::Mono)
                     ->sortable(),
 
+                // A corrected moment is marked three ways at once - a
+                // pencil, the info colour and a word - so it survives a
+                // greyscale screen, a reader who cannot tell blue from
+                // grey, and a screen reader that announces neither. The
+                // word above the time says which of the two things
+                // happened, and the line below it prints what the device
+                // recorded, so the amendment is legible without opening
+                // anything.
+                //
+                // 'info' and not 'warning': amber already means "somebody
+                // must act" on this very table, and a corrected time asks
+                // nobody for anything.
                 TextColumn::make('check_in_at')
                     ->label(__('attendance.fields.check_in_at'))
                     ->time('H:i')
                     ->fontFamily(FontFamily::Mono)
-                    ->weight(FontWeight::Medium),
+                    ->weight(FontWeight::Medium)
+                    ->icon(fn (Attendance $record): ?BackedEnum => $record->isCheckInCorrected()
+                        ? Heroicon::OutlinedPencilSquare
+                        : null)
+                    ->iconPosition(IconPosition::Before)
+                    ->color(fn (Attendance $record): ?string => $record->isCheckInCorrected() ? 'info' : null)
+                    ->description(fn (Attendance $record): ?string => self::correctedWord(
+                        $record->isCheckInCorrected(),
+                        $record->hasDeviceCheckIn(),
+                    ), position: 'above')
+                    ->description(fn (Attendance $record): ?string => self::deviceMoment(
+                        $record->isCheckInCorrected(),
+                        $record->hasDeviceCheckIn(),
+                        $record->deviceCheckInAt(),
+                    )),
 
                 TextColumn::make('check_out_at')
                     ->label(__('attendance.fields.check_out_at'))
                     ->time('H:i')
                     ->fontFamily(FontFamily::Mono)
                     ->weight(FontWeight::Medium)
-                    ->placeholder(__('attendance.placeholders.no_check_out')),
+                    ->placeholder(__('attendance.placeholders.no_check_out'))
+                    ->icon(fn (Attendance $record): ?BackedEnum => $record->isCheckOutCorrected()
+                        ? Heroicon::OutlinedPencilSquare
+                        : null)
+                    ->iconPosition(IconPosition::Before)
+                    ->color(fn (Attendance $record): ?string => $record->isCheckOutCorrected() ? 'info' : null)
+                    ->description(fn (Attendance $record): ?string => self::correctedWord(
+                        $record->isCheckOutCorrected(),
+                        $record->hasDeviceCheckOut(),
+                    ), position: 'above')
+                    ->description(fn (Attendance $record): ?string => self::deviceMoment(
+                        $record->isCheckOutCorrected(),
+                        $record->hasDeviceCheckOut(),
+                        $record->deviceCheckOutAt(),
+                    )),
 
                 // How long the session lasted, computed from the two stored
                 // moments rather than kept in a column that could disagree
@@ -204,6 +247,27 @@ final class AttendancesTable
                         fn (Builder $nested): Builder => $nested->where('attendance_date', $data['date']),
                     )),
 
+                // Both flags are columns on the row this table already
+                // loads, so asking for the corrected records costs one
+                // predicate and no join - the constant-cost promise this
+                // list makes is untouched.
+                TernaryFilter::make('corrected')
+                    ->label(__('attendance.filters.corrected'))
+                    ->placeholder(__('attendance.filters.corrected_any'))
+                    ->trueLabel(__('attendance.filters.corrected_only'))
+                    ->falseLabel(__('attendance.filters.corrected_none'))
+                    ->queries(
+                        true: fn (Builder $query): Builder => $query->where(
+                            fn (Builder $nested): Builder => $nested
+                                ->whereNotNull('check_in_correction_id')
+                                ->orWhereNotNull('check_out_correction_id'),
+                        ),
+                        false: fn (Builder $query): Builder => $query
+                            ->whereNull('check_in_correction_id')
+                            ->whereNull('check_out_correction_id'),
+                        blank: fn (Builder $query): Builder => $query,
+                    ),
+
                 Filter::make('date_range')
                     ->label(__('attendance.filters.date_range'))
                     ->schema([
@@ -284,6 +348,44 @@ final class AttendancesTable
             AttendanceStatus::CheckedOut => Heroicon::OutlinedCheckCircle,
             AttendanceStatus::MissingCheckOut => Heroicon::OutlinedExclamationTriangle,
         };
+    }
+
+    /**
+     * Which of the two things happened to this moment, or nothing at all.
+     *
+     * Two words and not one, because they are two different events and a
+     * single "corrected" would flatten them. A time the device recorded and
+     * an approved correction moved is مصحَّح; a time the device never
+     * recorded, supplied entirely by an approved correction, is مسجَّل
+     * يدويًا - and the second is the one a reader must not mistake for a
+     * verified reading, because there was never a reading at all.
+     */
+    private static function correctedWord(bool $isCorrected, bool $hasDeviceRecord): ?string
+    {
+        if (! $isCorrected) {
+            return null;
+        }
+
+        return $hasDeviceRecord
+            ? __('attendance.badges.corrected')
+            : __('attendance.badges.recorded_manually');
+    }
+
+    /**
+     * What the device recorded before the correction moved it, printed
+     * under the moment that replaced it.
+     *
+     * Nothing where the device recorded nothing: the word above already
+     * says so, and "the device recorded —" would be a sentence about a
+     * measurement that does not exist.
+     */
+    private static function deviceMoment(bool $isCorrected, bool $hasDeviceRecord, ?CarbonImmutable $moment): ?string
+    {
+        if (! $isCorrected || ! $hasDeviceRecord || $moment === null) {
+            return null;
+        }
+
+        return __('attendance.badges.corrected_from', ['time' => $moment->format('H:i')]);
     }
 
     private static function meters(string $meters): string
