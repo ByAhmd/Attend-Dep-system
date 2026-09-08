@@ -52,10 +52,16 @@ final class AttendanceRejection extends Model
     }
 
     /**
+     * The employee whose attempt was refused, deleted accounts included.
+     *
+     * This is an audit trail: an entry that stops naming anybody after the
+     * account is deleted has stopped being one. withTrashed() keeps the name
+     * on the row.
+     *
      * @return BelongsTo<User, $this>
      */
     public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class)->withTrashed();
     }
 }

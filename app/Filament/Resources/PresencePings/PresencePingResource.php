@@ -32,6 +32,10 @@ final class PresencePingResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedSignal;
 
+    // The same glyph filled in, so the entry the reader is standing on
+    // is legible as the current one from the shape alone.
+    protected static string|BackedEnum|null $activeNavigationIcon = Heroicon::Signal;
+
     protected static ?int $navigationSort = 3;
 
     public static function getNavigationGroup(): NavigationGroup

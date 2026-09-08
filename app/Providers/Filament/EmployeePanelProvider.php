@@ -9,6 +9,7 @@ use App\Filament\Employee\Pages\Attendance;
 use App\Filament\Employee\Widgets\AttendanceHistoryWidget;
 use App\Providers\Filament\Concerns\ConfiguresPanel;
 use App\Support\Filament\PanelAccess;
+use App\Support\Filament\PanelSwitchMenuItems;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Enums\Width;
@@ -43,6 +44,11 @@ final class EmployeePanelProvider extends PanelProvider
                 // stock one refuses an account that cannot enter the panel,
                 // which is precisely an account still waiting to be invited.
                 ->passwordReset(resetAction: ResetPassword::class)
+                // The only way to /admin from here. An administrator who
+                // signs in at the site root lands on this screen, and
+                // without this entry the administration panel is reachable
+                // only by typing its address.
+                ->userMenuItems(PanelSwitchMenuItems::toAdminPanel())
                 ->navigation(false)
                 // A phone-width card even on a desktop: the screen is two
                 // buttons and a status, and stretching it adds nothing.

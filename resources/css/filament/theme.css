@@ -7,3 +7,407 @@
  */
 @source '../../../app/Filament/**/*';
 @source '../../../resources/views/filament/**/*';
+
+/*
+ | --------------------------------------------------------------------------
+ | Type
+ | --------------------------------------------------------------------------
+ |
+ | The panel loads IBM Plex Sans Arabic and Filament exposes the chosen family
+ | as --font-family at runtime, so the stack has to be assembled at use time -
+ | hence `inline`, as in Filament's own definition.
+ |
+ | What follows the webfont is a real Arabic-capable fallback, not a generic
+ | one: the interface has to be readable in the second before the font lands
+ | on a phone on mobile data. Segoe UI and Noto Sans Arabic cover Windows and
+ | Android, system-ui resolves to SF Arabic on Apple devices, and the emoji
+ | families at the end are Filament's own and are kept.
+ */
+@theme inline {
+    --font-sans:
+        var(--font-family), 'Segoe UI', 'Noto Sans Arabic', system-ui,
+        ui-sans-serif, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
+        'Segoe UI Symbol', 'Noto Color Emoji';
+}
+
+/*
+ | --------------------------------------------------------------------------
+ | Shape and depth
+ | --------------------------------------------------------------------------
+ |
+ | The shared visual language, defined once here so no screen has to invent
+ | its own corner or its own drop shadow.
+ */
+@theme {
+    /*
+     | Filament rounds its controls to --radius-lg and its surfaces to
+     | --radius-xl, so raising those two raises the whole interface at once.
+     | The increase is small on purpose: softer, not bubbly.
+     */
+    --radius-md: 0.5rem; /* badges, small chips */
+    --radius-lg: 0.625rem; /* buttons, inputs, dropdown items */
+    --radius-xl: 0.875rem; /* sections, tables, panels, modals */
+
+    /* The corner of a surface this product owns rather than Filament: the
+       sign-in card, and the panels the attendance screen is built from. */
+    --radius-card: 1.125rem;
+
+    /*
+     | Depth is low and wide rather than tight and dark, and tinted with the
+     | brand hue instead of pure black, so a raised surface reads as lit
+     | rather than cut out of the page. Only the three shadows Filament puts
+     | on in-page surfaces are redefined; the larger ones it uses for
+     | dropdowns and modals keep their separation from the content below.
+     */
+    --shadow-xs: 0 1px 2px 0 oklch(0.271 0.104 284.5 / 0.05);
+    --shadow-sm:
+        0 1px 2px 0 oklch(0.271 0.104 284.5 / 0.04),
+        0 2px 8px -2px oklch(0.271 0.104 284.5 / 0.06);
+    --shadow-md:
+        0 2px 4px -1px oklch(0.271 0.104 284.5 / 0.05),
+        0 8px 20px -6px oklch(0.271 0.104 284.5 / 0.1);
+
+    /* The two depths this product asks for by name: `shadow-soft` for a
+       surface that merely sits on the page, `shadow-lifted` for the single
+       element on a screen that should feel raised. */
+    --shadow-soft:
+        0 1px 2px 0 oklch(0.271 0.104 284.5 / 0.04),
+        0 4px 12px -4px oklch(0.271 0.104 284.5 / 0.07);
+    --shadow-lifted:
+        0 2px 4px -2px oklch(0.271 0.104 284.5 / 0.06),
+        0 14px 34px -14px oklch(0.271 0.104 284.5 / 0.16);
+}
+
+/*
+ | --------------------------------------------------------------------------
+ | The brand mark
+ | --------------------------------------------------------------------------
+ |
+ | Rendered inside Filament's .fi-logo, which fixes the height from
+ | ->brandLogoHeight() and owns the text colour. The pin therefore takes the
+ | primary shade that carries on each theme and the name inherits, so a single
+ | asset serves light and dark.
+ */
+.fi-brand-mark {
+    @apply flex h-full items-center gap-2;
+}
+
+.fi-brand-mark-pin {
+    @apply text-primary-600 dark:text-primary-400 h-full w-auto shrink-0;
+}
+
+.fi-brand-mark-name {
+    @apply whitespace-nowrap;
+}
+
+/*
+ | --------------------------------------------------------------------------
+ | The employee panel's top bar
+ | --------------------------------------------------------------------------
+ |
+ | Filament hides the top bar's leading slot below lg, because on a normal
+ | panel the sidebar is carrying the brand at those widths. The employee
+ | panel has no sidebar at all - one page, ->navigation(false) - so the rule
+ | left the phone with a bar holding an avatar and nothing else, on the one
+ | screen of this product an employee opens every morning. The name is put
+ | back at every width here, and the indent Filament adds to clear a sidebar
+ | toggle goes with it, because there is no toggle to clear.
+ |
+ | Scoped to this panel: the admin bar sits above its own sidebar, where the
+ | stock rule is right and the brand would otherwise be printed twice.
+ */
+.fi-panel-employee .fi-topbar-start {
+    @apply flex;
+
+    & .fi-logo {
+        @apply ms-0;
+    }
+}
+
+/*
+ | That avatar is the only control on the employee top bar - it opens the
+ | sign-out and the language switch - and Filament draws it 32px, which is a
+ | mouse target rather than a thumb one. The picture stays 32px; the button
+ | around it grows to the 44px a thumb needs, so nothing moves and the target
+ | doubles. The admin panel is read on a desktop and keeps its own density.
+ */
+.fi-panel-employee .fi-user-menu-trigger {
+    @apply flex min-h-11 min-w-11 items-center justify-center;
+}
+
+/*
+ | --------------------------------------------------------------------------
+ | The signed-out screens
+ | --------------------------------------------------------------------------
+ |
+ | Sign in, and the reset page an invited employee lands on. Filament renders
+ | both through its "simple" layout, which no signed-in page in this product
+ | uses, so styling that layout reaches exactly these screens.
+ |
+ | The background is two wide, low washes of the brand colour behind the card:
+ | enough to make arriving here feel like somewhere rather than nowhere, far
+ | too weak to compete with anything on top of it. Their horizontal anchors
+ | are custom properties so they follow the reading direction instead of
+ | staying pinned to the physical left.
+ */
+.fi-simple-layout {
+    --fi-auth-wash: color-mix(in oklab, var(--primary-500) 9%, transparent);
+    --fi-auth-wash-lead: 14%;
+    --fi-auth-wash-trail: 90%;
+
+    background-repeat: no-repeat;
+    background-image:
+        radial-gradient(
+            44rem 30rem at var(--fi-auth-wash-lead) -10%,
+            var(--fi-auth-wash),
+            transparent 70%
+        ),
+        radial-gradient(
+            38rem 26rem at var(--fi-auth-wash-trail) 108%,
+            var(--fi-auth-wash),
+            transparent 72%
+        );
+}
+
+[dir='rtl'] .fi-simple-layout {
+    --fi-auth-wash-lead: 86%;
+    --fi-auth-wash-trail: 10%;
+}
+
+/* Dark surfaces swallow a tint, so the same wash is mixed stronger there. */
+.dark .fi-simple-layout {
+    --fi-auth-wash: color-mix(in oklab, var(--primary-500) 16%, transparent);
+}
+
+/* The language switch sits in the flow at the top of the layout rather than
+   floating over it: nothing overlaps, and it is first in the tab order. */
+.fi-auth-topbar {
+    @apply flex w-full items-center justify-start p-4 sm:p-6;
+}
+
+.fi-auth-lang {
+    @apply shadow-soft min-h-11 inline-flex items-center gap-2 rounded-full bg-white/70 px-4 text-sm font-medium text-gray-700 ring-1 ring-gray-950/10 backdrop-blur-sm transition duration-75;
+    @apply hover:bg-white hover:text-gray-950;
+    @apply focus-visible:outline-primary-600 focus-visible:outline-2 focus-visible:outline-offset-2;
+    @apply dark:bg-white/5 dark:text-gray-300 dark:ring-white/10;
+    @apply dark:hover:bg-white/10 dark:hover:text-white;
+    @apply dark:focus-visible:outline-primary-400;
+}
+
+.fi-auth-lang-icon {
+    @apply size-5 shrink-0 text-gray-500 dark:text-gray-400;
+}
+
+/* The card floats on the wash at every width, including the phone, where
+   Filament otherwise runs it edge to edge with square corners. */
+.fi-simple-main-ctn {
+    @apply px-4 sm:px-6;
+}
+
+.fi-simple-main {
+    @apply rounded-card shadow-lifted my-8 sm:my-14;
+}
+
+/*
+ | --------------------------------------------------------------------------
+ | Touch targets
+ | --------------------------------------------------------------------------
+ |
+ | Filament sizes its controls for a mouse: the sign-in button and the two
+ | inputs come out 36px tall, the password eye 32px, and the "remember me"
+ | box 16px behind a 20px label. This is the screen an employee meets on a
+ | phone at the door in the morning, so every control here is raised to the
+ | 44px a thumb needs - which also clears WCAG 2.2 SC 2.5.8 (24px minimum).
+ |
+ | Scoped to .fi-simple-main so it reaches the signed-out screens only. The
+ | admin tables are dense on purpose and are read on a desktop; nothing here
+ | is allowed to touch them.
+ */
+.fi-simple-main {
+    & .fi-btn,
+    & .fi-input-wrp,
+    & .fi-icon-btn {
+        @apply min-h-11;
+    }
+
+    /*
+     | The wrapper is 44px tall, and the field inside it was still Filament's
+     | 36 - leaving a band along the top and bottom of every box that looks
+     | exactly like the input and is not one. The field is given the same
+     | minimum as the box, so the whole box is the target it appears to be.
+     | A minimum rather than a stretch: the field is a flex item of a wrapper
+     | that is itself only as tall as its content, so there is nothing for it
+     | to stretch against.
+     */
+    & .fi-input-wrp .fi-input {
+        @apply min-h-11;
+    }
+
+    /* The eye fills the height it now sits in rather than floating inside
+       it, and is as wide as a thumb rather than as wide as its glyph: it
+       measured 32px across, inside a bordered cell half again as wide. */
+    & .fi-input-wrp .fi-icon-btn {
+        @apply min-w-11 self-stretch;
+    }
+
+    /*
+     | "Forgot your password?" is the other thing on this screen a thumb is
+     | aimed at - it is how an invited employee who never chose a password
+     | gets in - and Filament draws it as 22px of text beside the label. The
+     | padding takes the target to 46px and an equal negative margin gives
+     | the space straight back, so the label row does not move a pixel and
+     | the link still sits on its baseline.
+     */
+    & .fi-sc-text a {
+        @apply -my-3 inline-flex items-center py-3;
+    }
+
+    /*
+     | Only the checkbox's own label, never the field labels above the inputs:
+     | the checkbox is this label's direct child, which tells the two apart.
+     | The box stays 16px - a checkbox that size is what the platform draws -
+     | and the row around it becomes the target.
+     */
+    & .fi-fo-field-label:has(> .fi-checkbox-input) {
+        @apply min-h-11 flex items-center;
+    }
+}
+
+/*
+ | --------------------------------------------------------------------------
+ | The administration panel below the sidebar breakpoint
+ | --------------------------------------------------------------------------
+ |
+ | The admin tables are dense on purpose, and that density is a decision about
+ | a desktop, where the pointer is a mouse. Below Filament's own sidebar
+ | breakpoint there is no desktop left: the sidebar has become an overlay, the
+ | top bar is two icon buttons, and everything on the screen is being hit with
+ | a thumb - by the owner, who reads this panel on a phone to see whether
+ | anybody has arrived yet.
+ |
+ | Measured at 375px, Filament's chrome comes out between 32 and 40: the
+ | sidebar toggle 32x36, the user menu 32x32, the sidebar entries 40, the
+ | table toolbar's search field and its filter and column buttons 36, the sort
+ | select 36, and a modal's close button and its Open-in-map 36. Each is
+ | raised to the 44px a thumb needs; nothing already larger changes at all,
+ | because a minimum only applies where the control was under it.
+ |
+ | A media query rather than a class, so nothing at 1024px and above is
+ | touched and the desktop table stays exactly as dense as it was.
+ */
+@media (width < 64rem) {
+    .fi-panel-admin {
+        & .fi-btn,
+        & .fi-input-wrp,
+        & .fi-select-input,
+        & .fi-sidebar-item-btn,
+        & .fi-dropdown-list-item {
+            @apply min-h-11;
+        }
+
+        & .fi-icon-btn {
+            @apply min-h-11 min-w-11;
+        }
+
+        /* As on the signed-out screens: the field carries the same minimum
+           as the box around it, so the whole box is the target it looks
+           like - the topbar's search field and every table's own. */
+        & .fi-input-wrp .fi-input {
+            @apply min-h-11;
+        }
+
+        /*
+         | Once a table stacks into cards, the row's action is the only
+         | control on the card - and Filament draws a link action as plain
+         | text, twenty pixels tall. It keeps its size and its weight; the
+         | line it sits on becomes the target.
+         */
+        & .fi-ac-link-action {
+            @apply inline-flex min-h-11 items-center;
+        }
+
+        /* The picture stays the size Filament draws it; the button around it
+           grows, exactly as on the employee panel above. */
+        & .fi-user-menu-trigger {
+            @apply flex min-h-11 min-w-11 items-center justify-center;
+        }
+    }
+}
+
+/*
+ | On this one screen the mark leads and the heading instructs, so the logo is
+ | larger here than in the top bar. Filament writes ->brandLogoHeight() into a
+ | style attribute, which no class can outrank; the font size beside it is
+ | raised to match so the lockup scales as a whole.
+ */
+.fi-simple-header {
+    & .fi-logo {
+        height: 2.25rem !important;
+
+        @apply mb-5 text-2xl leading-none;
+    }
+}
+
+.fi-simple-header-heading {
+    @apply text-lg font-semibold;
+}
+
+/*
+ | --------------------------------------------------------------------------
+ | Legibility
+ | --------------------------------------------------------------------------
+ |
+ | Filament sets a missing value in gray-400 on light and gray-500 on dark.
+ | Both are below AA at this size - 2.6:1 on the white table, 3.7:1 on the
+ | gray-900 one - and in this product the missing value is not decoration:
+ | "لم يسجّل الانصراف" is the sentence that says a session was never closed,
+ | and it is the reason an administrator opened the row. One shade darker on
+ | light and one lighter on dark carries it: gray-500 measures 4.83:1 on
+ | white and 4.67:1 on the striped row, gray-400 measures 6.89:1 on the dark
+ | surface and 6.29:1 on its striped row. All four clear 4.5:1, and the
+ | value still reads as quieter than the figures around it.
+ |
+ | The same pair styles an input's placeholder, and the coordinate examples
+ | on the settings form are placeholders that have to be read to be useful.
+ */
+.fi-ta-placeholder,
+.fi-in-placeholder {
+    @apply text-gray-500 dark:text-gray-400;
+}
+
+/* The dark half is written as a descendant of .dark rather than with the
+   `dark:` variant: that variant compiles to `:where(.dark, .dark *)` appended
+   to the selector, which lands after `::placeholder` and asks the pseudo
+   element - not the input - to be inside the dark tree, so the rule never
+   matches. */
+.fi-input::placeholder,
+.fi-textarea::placeholder {
+    @apply text-gray-500;
+}
+
+.dark .fi-input::placeholder,
+.dark .fi-textarea::placeholder {
+    @apply text-gray-400;
+}
+
+/*
+ | --------------------------------------------------------------------------
+ | A pair of figures inside an Arabic page
+ | --------------------------------------------------------------------------
+ |
+ | A latitude and a longitude are two runs of digits joined by ", ": neutral
+ | characters that the bidirectional algorithm reorders in a right-to-left
+ | paragraph, so "24.7136000, 46.6753000" is printed with the longitude
+ | first. On the one screen where the pair is the evidence, that is a false
+ | reading of the audit - the coordinates of somewhere in the Indian Ocean.
+ | Anything showing such a pair therefore carries dir="ltr".
+ |
+ | That fixes the order but not the alignment: `start` inside an element that
+ | is itself left-to-right resolves to the physical left, and the value would
+ | walk away from the label above it. `right` is what `start` can no longer
+ | say here - the end of the surrounding Arabic paragraph, which is where the
+ | rest of the column already sits.
+ */
+[dir='rtl'] .fi-in-text[dir='ltr'] {
+    text-align: right;
+}

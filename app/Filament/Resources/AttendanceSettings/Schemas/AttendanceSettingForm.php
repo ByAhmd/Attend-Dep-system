@@ -9,6 +9,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Callout;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Filament\Support\Icons\Heroicon;
 
 /**
  * Where the company is, and how far from it attendance counts.
@@ -17,6 +18,16 @@ use Filament\Schemas\Schema;
  * of the system enforces (Coordinates refuses anything outside them, the
  * radius limits come from config), so the form can never store a value the
  * verifier would later choke on.
+ *
+ * This is a screen somebody visits perhaps twice, to paste two numbers
+ * copied out of a map, so it is laid out as two instructions rather than
+ * three inputs: each section states its question beside the fields that
+ * answer it - a pin for where, a viewfinder for how close - which gives
+ * the sentence about where the numbers come from the width to be read
+ * instead of the small print under a box. Each coordinate carries a worked
+ * example as its placeholder, because the commonest way to get this wrong
+ * is to paste the pair the other way round, and 46 where a latitude
+ * belongs is only obvious next to a latitude that looks like one.
  */
 final class AttendanceSettingForm
 {
@@ -36,10 +47,13 @@ final class AttendanceSettingForm
                     ->hidden(fn (?AttendanceSetting $record): bool => $record?->isConfigured() ?? false),
 
                 Section::make(__('settings.sections.location'))
+                    ->icon(Heroicon::OutlinedMapPin)
                     ->description(__('settings.helpers.coordinates'))
+                    ->aside()
                     ->schema([
                         TextInput::make('latitude')
                             ->label(__('settings.fields.latitude'))
+                            ->placeholder(__('settings.placeholders.latitude'))
                             ->numeric()
                             ->required()
                             ->step(0.0000001)
@@ -52,6 +66,7 @@ final class AttendanceSettingForm
 
                         TextInput::make('longitude')
                             ->label(__('settings.fields.longitude'))
+                            ->placeholder(__('settings.placeholders.longitude'))
                             ->numeric()
                             ->required()
                             ->step(0.0000001)
@@ -64,11 +79,16 @@ final class AttendanceSettingForm
                     ])
                     ->columns(2),
 
+                // The sentence that explains the radius moves up here, into
+                // the width the aside gives it, rather than being repeated
+                // as small print under the box it explains.
                 Section::make(__('settings.sections.radius'))
+                    ->icon(Heroicon::OutlinedViewfinderCircle)
+                    ->description(__('settings.helpers.radius'))
+                    ->aside()
                     ->schema([
                         TextInput::make('radius_meters')
                             ->label(__('settings.fields.radius_meters'))
-                            ->helperText(__('settings.helpers.radius'))
                             ->numeric()
                             ->integer()
                             ->required()
@@ -84,7 +104,10 @@ final class AttendanceSettingForm
                                 'max' => self::radiusMessage($minRadius, $maxRadius),
                             ]),
                     ])
-                    ->columns(1),
+                    // Half width, so the metre suffix Filament pins to the
+                    // far end of the field lands beside the three digits it
+                    // belongs to rather than a hand's width away from them.
+                    ->columns(2),
             ])
             ->columns(1);
     }

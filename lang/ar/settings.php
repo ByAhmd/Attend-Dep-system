@@ -21,8 +21,25 @@ return [
         'radius_suffix' => 'م',
     ],
 
+    /*
+     | إحداثيات نموذجية تُظهر الشكل المتوقع للقيمة: خط عرض قريب من 24 وخط
+     | طول قريب من 46 في الرياض، حتى يبدو الزوج المعكوس خاطئًا قبل حفظه.
+     */
+    'placeholders' => [
+        'latitude' => '24.7136000',
+        'longitude' => '46.6753000',
+    ],
+
     'helpers' => [
-        'coordinates' => 'افتح خرائط Google، اضغط مطوّلًا على مدخل الشركة، ثم انسخ الرقمين الظاهرين (مثال: 24.7136, 46.6753).',
+        /*
+         | The worked pair is wrapped in a Unicode left-to-right isolate
+         | (U+2066 opening it, U+2069 closing it). Without one, the Arabic
+         | paragraph direction reorders the neutral characters around it and
+         | the browser prints the longitude first - on the one screen whose
+         | entire failure mode is entering the two numbers the wrong way
+         | round.
+         */
+        'coordinates' => "افتح خرائط Google، اضغط مطوّلًا على مدخل الشركة، ثم انسخ الرقمين الظاهرين (مثال: \u{2066}24.7136, 46.6753\u{2069}).",
         'radius' => 'الافتراضي 150 مترًا. يجب أن يكون الموظف ضمن هذه المسافة من الإحداثيات أعلاه لتسجيل الحضور أو الانصراف.',
         'not_configured' => 'لا يمكن تسجيل الحضور حتى يتم ضبط موقع الشركة.',
         'preview' => 'فتح الموقع المضبوط في الخريطة',

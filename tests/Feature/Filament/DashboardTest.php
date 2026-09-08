@@ -30,6 +30,11 @@ use Tests\TestCase;
  * Since a day may hold several sessions per person, the three attendance
  * figures count PEOPLE. A person who went out for lunch and came back is
  * one person checked in, not three.
+ *
+ * The order of the five is part of what the dashboard says, so it is
+ * asserted rather than assumed: today first, starting with who is inside
+ * right now, and the roster after it. Filament lays five stats out three
+ * to a row, so that order is also the break between the two rows.
  */
 final class DashboardTest extends TestCase
 {
@@ -100,12 +105,14 @@ final class DashboardTest extends TestCase
     {
         $this->seedTodaysAttendance();
 
+        // assertSame compares key order too, so this pins the briefing
+        // order as well as the arithmetic.
         $this->assertSame([
-            __('dashboard.stats.employees_total') => '3',
-            __('dashboard.stats.employees_active') => '2',
+            __('dashboard.stats.currently_checked_in') => '1',
             __('dashboard.stats.checked_in_today') => '2',
             __('dashboard.stats.checked_out_today') => '1',
-            __('dashboard.stats.currently_checked_in') => '1',
+            __('dashboard.stats.employees_active') => '2',
+            __('dashboard.stats.employees_total') => '3',
         ], $this->statsByLabel());
     }
 
@@ -127,11 +134,11 @@ final class DashboardTest extends TestCase
         $this->attendanceSession($sara, '18:00');
 
         $this->assertSame([
-            __('dashboard.stats.employees_total') => '1',
-            __('dashboard.stats.employees_active') => '1',
+            __('dashboard.stats.currently_checked_in') => '1',
             __('dashboard.stats.checked_in_today') => '1',
             __('dashboard.stats.checked_out_today') => '1',
-            __('dashboard.stats.currently_checked_in') => '1',
+            __('dashboard.stats.employees_active') => '1',
+            __('dashboard.stats.employees_total') => '1',
         ], $this->statsByLabel());
     }
 

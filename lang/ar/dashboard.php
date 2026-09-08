@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 return [
     'title' => 'لوحة التحكم',
-    'subheading' => 'نظرة سريعة على اليوم.',
+    'subheading' => 'نظرة سريعة على اليوم: :date، بتوقيت الرياض.',
 
     'stats' => [
         'employees_total' => 'الموظفون',

@@ -21,6 +21,16 @@ return [
         'radius_suffix' => 'm',
     ],
 
+    /*
+     | The company's own coordinates, shown as the shape a pasted value
+     | should have: a latitude near 24 and a longitude near 46 in Riyadh,
+     | so a pair entered the wrong way round looks wrong before it is saved.
+     */
+    'placeholders' => [
+        'latitude' => '24.7136000',
+        'longitude' => '46.6753000',
+    ],
+
     'helpers' => [
         'coordinates' => 'Open Google Maps, press and hold on the company entrance, then copy the two numbers shown (for example 24.7136, 46.6753).',
         'radius' => 'Default 150 meters. Employees must be within this distance of the coordinates above to check in or out.',

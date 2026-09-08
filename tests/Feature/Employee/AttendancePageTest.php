@@ -262,7 +262,95 @@ final class AttendancePageTest extends TestCase
 
         Livewire::test(Attendance::class)
             ->assertSee(__('attendance.page.sessions_empty'))
-            ->assertSee(__('attendance.page.status.not_checked_in'));
+            ->assertSee(__('attendance.page.status.not_checked_in'))
+            ->assertSee(__('attendance.page.state_caption.not_checked_in'));
+    }
+
+    /**
+     * The sentence under the state is the screen's one claim about time
+     * that is not a row in the list, so it is checked against the clock the
+     * session was actually opened on.
+     */
+    #[Test]
+    public function the_state_names_the_time_the_open_session_began(): void
+    {
+        $this->configureCompanyLocation();
+        $this->freezeClock('2026-09-02 13:05:00');
+        $employee = $this->signInEmployee();
+        $this->attendanceSession($employee, '08:12');
+
+        Livewire::test(Attendance::class)
+            ->assertSee(__('attendance.page.status.checked_in'))
+            ->assertSee(__('attendance.page.state_caption.checked_in', ['time' => '08:12']));
+    }
+
+    #[Test]
+    public function the_state_names_the_last_check_out_once_the_day_is_closed(): void
+    {
+        $this->configureCompanyLocation();
+        $this->freezeClock('2026-09-02 17:30:00');
+        $employee = $this->signInEmployee();
+        $this->attendanceSession($employee, '08:00', '12:30');
+        $this->attendanceSession($employee, '13:15', '16:41');
+
+        Livewire::test(Attendance::class)
+            ->assertSee(__('attendance.page.status.checked_out'))
+            ->assertSee(__('attendance.page.state_caption.checked_out', ['time' => '16:41']));
+    }
+
+    /**
+     * The running session ends in a word, not in the dash that means "never
+     * recorded" everywhere else on the screen.
+     */
+    #[Test]
+    public function the_running_session_ends_at_now_rather_than_at_a_dash(): void
+    {
+        $this->configureCompanyLocation();
+        $this->freezeClock('2026-09-02 13:05:00');
+        $employee = $this->signInEmployee();
+        $this->attendanceSession($employee, '08:00', '12:30');
+        $this->attendanceSession($employee, '12:50');
+
+        $component = Livewire::test(Attendance::class);
+
+        $component->assertOk();
+
+        $html = $component->html();
+
+        $this->assertStringContainsString('12:50 &ndash; '.__('attendance.page.session_open'), $html);
+        $this->assertStringContainsString('08:00 &ndash; 12:30', $html);
+    }
+
+    /**
+     * The screen leads with the button that can be pressed.
+     *
+     * Exactly one of the two is ever available, and the redesign leans on
+     * that: the live action comes first in the markup and is drawn large,
+     * the other follows disabled. Reversing them would leave an employee
+     * reaching for the wrong one in a hurry.
+     */
+    #[Test]
+    public function the_available_action_is_rendered_before_the_unavailable_one(): void
+    {
+        $this->configureCompanyLocation();
+        $this->freezeClock();
+        $employee = $this->signInEmployee();
+
+        $beforeCheckIn = $this->buttonLabelsInOrder(Livewire::test(Attendance::class)->html());
+
+        $this->assertSame(
+            [__('attendance.actions.check_in'), __('attendance.actions.check_out')],
+            $beforeCheckIn,
+        );
+
+        $this->attendanceSession($employee, '08:00');
+
+        $whileInside = $this->buttonLabelsInOrder(Livewire::test(Attendance::class)->html());
+
+        $this->assertSame(
+            [__('attendance.actions.check_out'), __('attendance.actions.check_in')],
+            $whileInside,
+        );
     }
 
     #[Test]
@@ -439,6 +527,21 @@ final class AttendancePageTest extends TestCase
     private function disabledButtonCount(string $html): int
     {
         return preg_match_all('/<button\b[^>]*\sdisabled(?:\s|>|=)/', $html);
+    }
+
+    /**
+     * The label of every button on the page, in the order it is rendered.
+     *
+     * @return list<string>
+     */
+    private function buttonLabelsInOrder(string $html): array
+    {
+        preg_match_all('/<button\b[^>]*>(.*?)<\/button>/s', $html, $buttons);
+
+        return array_values(array_filter(array_map(
+            static fn (string $button): string => trim(strip_tags($button)),
+            $buttons[1],
+        ), static fn (string $label): bool => $label !== ''));
     }
 
     private function signInEmployee(): User

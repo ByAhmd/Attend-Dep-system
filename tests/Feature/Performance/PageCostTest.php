@@ -19,14 +19,18 @@ use Tests\Concerns\CreatesAttendanceFixtures;
 use Tests\TestCase;
 
 /**
- * What a page costs the server, guarded so it cannot quietly grow.
+ * What a page costs the server - and what it costs the reader - guarded so
+ * neither can quietly grow.
  *
- * Two things go wrong in a Filament application and neither shows up in a
- * functional test. A query inside a column closure turns one page into one
- * query per row. And a widget left on Filament's default deferred loading
+ * Three things go wrong in a Filament application and none of them shows up
+ * in a functional test. A query inside a column closure turns one page into
+ * one query per row. A widget left on Filament's default deferred loading
  * costs a whole extra HTTP request after the page has painted - which on a
  * phone, on mobile data, is the dominant cost of opening the screen, far
- * more than the query it defers.
+ * more than the query it defers. And a stock default can put a request to
+ * somebody else's server on every single page load, which is slower than
+ * anything measured here, fails on a network that blocks the host, and in
+ * this product carries an employee's initials off the premises to do it.
  */
 final class PageCostTest extends TestCase
 {
@@ -142,5 +146,77 @@ final class PageCostTest extends TestCase
             $this->queryCount(fn () => Livewire::test(Dashboard::class)->assertOk()),
             'The dashboard rendered without counting anything, so its figures are being fetched in a second request.',
         );
+    }
+
+    #[Test]
+    public function the_avatar_is_drawn_here_rather_than_fetched_from_somebody_else(): void
+    {
+        Filament::setCurrentPanel('employee');
+
+        $employee = $this->makeEmployee();
+        $employee->forceFill(['name' => 'Sara Alharbi'])->save();
+
+        $avatar = Filament::getUserAvatarUrl($employee);
+
+        // A data: URI is part of the HTML the server already sent, so the
+        // browser makes no request for it at all. Filament's own default
+        // would be an https://ui-avatars.com/ address here.
+        $this->assertStringStartsWith('data:image/svg+xml;base64,', $avatar);
+        $this->assertStringNotContainsString('ui-avatars', $avatar);
+
+        $svg = (string) base64_decode(substr($avatar, strlen('data:image/svg+xml;base64,')), true);
+
+        $this->assertStringContainsString('<svg', $svg);
+        $this->assertStringContainsString('S A', $svg);
+
+        // Drawn in the panel's own ramp rather than the near-black disc
+        // Filament asks ui-avatars for, which was the one element on the
+        // screen outside this product's palette - and invisible against the
+        // dark theme's own top bar.
+        $this->assertStringContainsString('fill="#6c4cf3"', $svg);
+    }
+
+    #[Test]
+    public function no_page_an_employee_opens_asks_another_server_for_anything(): void
+    {
+        $this->configureCompanyLocation();
+
+        $employee = $this->makeEmployee();
+
+        // The sign-in screen and the one screen behind it. Bunny serves the
+        // webfont and is declared on the panel on purpose; nothing else on
+        // either page may reach off this server, and the avatar is the one
+        // that used to.
+        foreach (['/login', '/'] as $path) {
+            $response = $path === '/login'
+                ? $this->get($path)
+                : $this->actingAs($employee)->get($path);
+
+            $response->assertOk();
+
+            $this->assertStringNotContainsString(
+                'ui-avatars.com',
+                $response->getContent() ?: '',
+                "{$path} still points the reader's browser at ui-avatars.com.",
+            );
+        }
+    }
+
+    #[Test]
+    public function a_name_with_no_letters_in_it_still_gets_an_avatar(): void
+    {
+        Filament::setCurrentPanel('employee');
+
+        $employee = $this->makeEmployee();
+        $employee->forceFill(['name' => '???'])->save();
+
+        $avatar = Filament::getUserAvatarUrl($employee);
+        $svg = (string) base64_decode(substr($avatar, strlen('data:image/svg+xml;base64,')), true);
+
+        // No initials to draw, so the person glyph rather than a blank disc
+        // or a literal question mark, which would read as an error somebody
+        // is expected to fix.
+        $this->assertStringContainsString('<path', $svg);
+        $this->assertStringNotContainsString('<text', $svg);
     }
 }
