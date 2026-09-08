@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 return [
     'title' => 'Dashboard',
-    'subheading' => 'Today at a glance.',
+    'subheading' => 'Today at a glance: :date, Riyadh time.',
 
     'stats' => [
         'employees_total' => 'Employees',

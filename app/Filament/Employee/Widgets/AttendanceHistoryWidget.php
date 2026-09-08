@@ -7,6 +7,7 @@ namespace App\Filament\Employee\Widgets;
 use App\Models\Attendance;
 use App\Support\Attendance\SessionDuration;
 use Filament\Facades\Filament;
+use Filament\Support\Enums\FontWeight;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
@@ -54,10 +55,14 @@ final class AttendanceHistoryWidget extends TableWidget
                     ->orderByDesc('id'),
             )
             ->heading(__('attendance.history.heading'))
+            ->description(__('attendance.history.description'))
             ->columns([
+                // The date leads each row - and, once the table stacks into
+                // cards on a phone, titles it - so it carries the weight.
                 TextColumn::make('attendance_date')
                     ->label(__('attendance.fields.date'))
-                    ->date('Y-m-d'),
+                    ->date('Y-m-d')
+                    ->weight(FontWeight::Medium),
 
                 TextColumn::make('check_in_at')
                     ->label(__('attendance.fields.check_in_at'))
@@ -81,7 +86,12 @@ final class AttendanceHistoryWidget extends TableWidget
             // Five columns do not fit a phone; below the sm breakpoint each
             // row becomes a labelled card instead of a sideways scroll.
             ->stackedOnMobile()
+            // Ten near-identical rows of times are easy to lose one's place
+            // in; the banding is the cheapest way to keep a row together
+            // while the eye crosses it.
+            ->striped()
             ->paginated([10])
+            ->emptyStateIcon('heroicon-o-clock')
             ->emptyStateHeading(__('attendance.history.empty_heading'))
             ->emptyStateDescription(__('attendance.history.empty_description'));
     }

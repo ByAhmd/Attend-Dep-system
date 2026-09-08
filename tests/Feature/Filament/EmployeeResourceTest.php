@@ -87,6 +87,29 @@ final class EmployeeResourceTest extends TestCase
             ->fillForm([
                 'name' => 'Sara Ali',
                 'email' => 'sara@company.test',
+            ])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $created = User::query()->where('email', 'sara@company.test')->first();
+
+        $this->assertNotNull($created);
+        $this->assertSame(UserRole::Employee, $created->role);
+        $this->assertSame(UserStatus::Pending, $created->status);
+        $this->assertNull($created->password);
+    }
+
+    #[Test]
+    public function an_ordinary_administrator_cannot_mint_an_administrator_on_the_create_form(): void
+    {
+        // Appointing an administrator belongs to the super administrator.
+        // A rule that stopped at the edit form would be one Create button
+        // wide, so the select is disabled and the submitted value dropped.
+        Livewire::test(CreateEmployee::class)
+            ->assertFormFieldDisabled('role')
+            ->fillForm([
+                'name' => 'Sara Ali',
+                'email' => 'sara@company.test',
                 'role' => UserRole::Admin->value,
             ])
             ->call('create')
@@ -95,9 +118,25 @@ final class EmployeeResourceTest extends TestCase
         $created = User::query()->where('email', 'sara@company.test')->first();
 
         $this->assertNotNull($created);
-        $this->assertSame(UserRole::Admin, $created->role);
-        $this->assertSame(UserStatus::Pending, $created->status);
-        $this->assertNull($created->password);
+        $this->assertSame(UserRole::Employee, $created->role);
+    }
+
+    #[Test]
+    public function the_super_administrator_can_appoint_an_administrator_on_the_create_form(): void
+    {
+        $this->actAsSuperAdmin();
+
+        Livewire::test(CreateEmployee::class)
+            ->assertFormFieldEnabled('role')
+            ->fillForm([
+                'name' => 'Sara Ali',
+                'email' => 'sara@company.test',
+                'role' => UserRole::Admin->value,
+            ])
+            ->call('create')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame(UserRole::Admin, User::query()->where('email', 'sara@company.test')->first()?->role);
     }
 
     #[Test]
@@ -141,9 +180,24 @@ final class EmployeeResourceTest extends TestCase
         $employee = $this->makeEmployee();
 
         Livewire::test(EditEmployee::class, ['record' => $employee->getRouteKey()])
-            ->assertFormFieldEnabled('role')
             ->assertFormFieldEnabled('status')
             ->assertDontSee(__('employees.helpers.own_access'));
+    }
+
+    #[Test]
+    public function the_role_select_is_locked_for_an_ordinary_administrator_and_open_to_the_super_administrator(): void
+    {
+        $employee = $this->makeEmployee();
+
+        Livewire::test(EditEmployee::class, ['record' => $employee->getRouteKey()])
+            ->assertFormFieldDisabled('role')
+            ->assertSee(__('employees.helpers.role_super_admin_only'));
+
+        $this->actAsSuperAdmin();
+
+        Livewire::test(EditEmployee::class, ['record' => $employee->getRouteKey()])
+            ->assertFormFieldEnabled('role')
+            ->assertDontSee(__('employees.helpers.role_super_admin_only'));
     }
 
     #[Test]
@@ -168,8 +222,11 @@ final class EmployeeResourceTest extends TestCase
     }
 
     #[Test]
-    public function another_accounts_role_and_status_can_be_changed(): void
+    public function an_ordinary_administrator_changes_another_accounts_status_but_not_its_role(): void
     {
+        // A submitted role is dropped the way a submitted status is on the
+        // administrator's own account: the disabled select is a courtesy,
+        // the strip in mutateFormDataBeforeSave is the rule.
         $employee = $this->makeEmployee();
 
         Livewire::test(EditEmployee::class, ['record' => $employee->getRouteKey()])
@@ -182,8 +239,29 @@ final class EmployeeResourceTest extends TestCase
 
         $employee = $employee->fresh();
 
-        $this->assertSame(UserRole::Admin, $employee->role);
+        $this->assertSame(UserRole::Employee, $employee->role);
         $this->assertSame(UserStatus::Inactive, $employee->status);
+    }
+
+    #[Test]
+    public function the_super_administrator_promotes_and_demotes_another_account(): void
+    {
+        $employee = $this->makeEmployee();
+        $this->actAsSuperAdmin();
+
+        Livewire::test(EditEmployee::class, ['record' => $employee->getRouteKey()])
+            ->fillForm(['role' => UserRole::Admin->value])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame(UserRole::Admin, $employee->fresh()->role);
+
+        Livewire::test(EditEmployee::class, ['record' => $employee->getRouteKey()])
+            ->fillForm(['role' => UserRole::Employee->value])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame(UserRole::Employee, $employee->fresh()->role);
     }
 
     #[Test]
@@ -414,16 +492,142 @@ final class EmployeeResourceTest extends TestCase
     }
 
     #[Test]
-    public function no_delete_action_exists_anywhere(): void
+    public function an_ordinary_administrator_is_offered_no_way_to_delete_an_account(): void
     {
+        // Not on the row, not in the header, and never in bulk: removing a
+        // colleague is the super administrator's alone, and it is done one
+        // at a time with their name in the confirmation.
         $employee = $this->makeEmployee();
 
-        Livewire::test(ListEmployees::class)
-            ->assertTableActionDoesNotExist('delete')
-            ->assertTableBulkActionDoesNotExist('delete');
+        $page = Livewire::test(ListEmployees::class)
+            ->assertTableActionHidden('delete', $employee)
+            ->instance();
+
+        if (! $page instanceof ListEmployees) {
+            self::fail('Livewire returned something other than the employee list.');
+        }
+
+        $this->assertSame([], $page->getTable()->getFlatBulkActions());
 
         Livewire::test(EditEmployee::class, ['record' => $employee->getRouteKey()])
-            ->assertActionDoesNotExist('delete');
+            ->assertActionHidden('delete');
+    }
+
+    #[Test]
+    public function an_ordinary_administrator_can_see_a_deleted_account_but_not_bring_it_back(): void
+    {
+        // Reading who was removed is fair; undoing it is the super
+        // administrator's, the same as doing it.
+        $employee = $this->makeEmployee();
+        $employee->delete();
+
+        Livewire::test(ListEmployees::class)
+            ->filterTable('trashed', false)
+            ->assertCanSeeTableRecords([$employee])
+            ->assertTableActionHidden('restore', $employee);
+    }
+
+    #[Test]
+    public function the_super_administrator_deletes_an_account_and_it_leaves_the_list(): void
+    {
+        $employee = $this->makeEmployee();
+        $this->actAsSuperAdmin();
+
+        Livewire::test(ListEmployees::class)
+            ->assertTableActionVisible('delete', $employee)
+            ->callTableAction('delete', $employee)
+            ->assertHasNoTableActionErrors()
+            ->assertNotified(__('employees.notifications.deleted', ['name' => $employee->name]));
+
+        $this->assertSoftDeleted($employee);
+
+        Livewire::test(ListEmployees::class)->assertCanNotSeeTableRecords([$employee]);
+    }
+
+    #[Test]
+    public function a_deleted_account_is_found_and_restored_through_the_deleted_accounts_filter(): void
+    {
+        $employee = $this->makeEmployee();
+        $this->actAsSuperAdmin();
+
+        $employee->delete();
+
+        Livewire::test(ListEmployees::class)
+            ->filterTable('trashed', false)
+            ->assertCanSeeTableRecords([$employee])
+            ->assertTableActionVisible('restore', $employee)
+            ->callTableAction('restore', $employee)
+            ->assertHasNoTableActionErrors()
+            ->assertNotified(__('employees.notifications.restored', ['name' => $employee->name]));
+
+        $this->assertNotSoftDeleted($employee);
+
+        Livewire::test(ListEmployees::class)->assertCanSeeTableRecords([$employee]);
+    }
+
+    #[Test]
+    public function a_deleted_account_offers_nothing_but_restore(): void
+    {
+        // There is no access to manage on an account that cannot sign in at
+        // all; inviting it or switching it on would be theatre.
+        $employee = $this->makeEmployee();
+        $this->actAsSuperAdmin();
+
+        $employee->delete();
+
+        Livewire::test(ListEmployees::class)
+            ->filterTable('trashed', false)
+            ->assertTableActionVisible('restore', $employee)
+            ->assertTableActionHidden('toggleStatus', $employee)
+            ->assertTableActionHidden('resetPassword', $employee)
+            ->assertTableActionHidden('delete', $employee);
+    }
+
+    #[Test]
+    public function the_super_administrators_own_row_is_marked_protected_and_offers_no_destructive_action(): void
+    {
+        $superAdmin = $this->actAsSuperAdmin();
+
+        Livewire::test(ListEmployees::class)
+            ->assertSee(__('employees.super_admin.badge'))
+            ->assertTableActionHidden('delete', $superAdmin)
+            ->assertTableActionHidden('toggleStatus', $superAdmin)
+            ->assertTableActionHidden('resetPassword', $superAdmin);
+
+        Livewire::test(EditEmployee::class, ['record' => $superAdmin->getRouteKey()])
+            ->assertActionHidden('delete')
+            ->assertActionHidden('toggleStatus')
+            ->assertActionHidden('resetPassword')
+            ->assertFormFieldDisabled('role')
+            ->assertFormFieldDisabled('status')
+            ->assertSee(__('employees.super_admin.protected'));
+    }
+
+    #[Test]
+    public function another_administrator_cannot_touch_the_super_administrator(): void
+    {
+        // The ordinary administrator from setUp() is still signed in; the
+        // super administrator is somebody else's account entirely.
+        $superAdmin = $this->makeAdmin('owner@company.test');
+        config(['admin.super_admin_email' => 'owner@company.test']);
+
+        Livewire::test(ListEmployees::class)
+            ->assertTableActionHidden('delete', $superAdmin)
+            ->assertTableActionHidden('toggleStatus', $superAdmin)
+            ->assertTableActionHidden('resetPassword', $superAdmin);
+
+        Livewire::test(EditEmployee::class, ['record' => $superAdmin->getRouteKey()])
+            ->fillForm([
+                'role' => UserRole::Employee->value,
+                'status' => UserStatus::Inactive->value,
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $superAdmin = $superAdmin->fresh();
+
+        $this->assertSame(UserRole::Admin, $superAdmin->role);
+        $this->assertSame(UserStatus::Active, $superAdmin->status);
     }
 
     #[Test]
@@ -448,5 +652,17 @@ final class EmployeeResourceTest extends TestCase
             'status' => UserStatus::Pending,
             'password' => null,
         ]);
+    }
+
+    /**
+     * Turns the signed-in administrator into the super administrator by
+     * pinning their address in the configuration, which is where the
+     * designation lives - there is no column to set.
+     */
+    private function actAsSuperAdmin(): User
+    {
+        config(['admin.super_admin_email' => $this->admin->email]);
+
+        return $this->admin;
     }
 }

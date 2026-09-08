@@ -21,9 +21,21 @@ return [
             'checked_in' => 'Checked in',
             'checked_out' => 'Checked out',
         ],
+        /*
+         | The sentence under the state. It names the time the state began,
+         | so the employee can check the screen against their own memory of
+         | the morning instead of trusting a word.
+         */
+        'state_caption' => [
+            'not_checked_in' => 'Press Check In once you have reached the company.',
+            'checked_in' => 'Your session has been open since :time.',
+            'checked_out' => 'Your last check-out today was at :time.',
+        ],
         'sessions_heading' => "Today's sessions",
         'sessions_empty' => 'You have not checked in today yet.',
         'session_number' => 'Session :number',
+        // The end of the one session on the timeline that has not finished.
+        'session_open' => 'Now',
         'sessions_count' => 'Sessions today',
         'total_inside' => 'Time inside today',
         'sessions_hint' => 'You may check out and check in again as often as the day requires.',
@@ -71,6 +83,9 @@ return [
 
     'history' => [
         'heading' => 'Attendance history',
+        // Says what one row is, because a day with a break in it produces
+        // several and would otherwise look like a duplicate.
+        'description' => 'One row per session, newest first.',
         'empty_heading' => 'No attendance yet',
         'empty_description' => 'Your check-ins and check-outs will appear here.',
     ],
@@ -108,6 +123,7 @@ return [
 
     'filters' => [
         'employee' => 'Employee',
+        'status' => 'Status',
         'date' => 'Date',
         'date_range' => 'Date range',
         'from' => 'From',

@@ -59,11 +59,18 @@ final class PresencePing extends Model
     }
 
     /**
+     * The employee this ping was taken from, deleted accounts included.
+     *
+     * A ping is evidence of where somebody was. withTrashed() keeps the
+     * "somebody" on it after their account is deleted; without it the
+     * soft-delete scope resolves the relation to null and the list shows a
+     * position belonging to nobody.
+     *
      * @return BelongsTo<User, $this>
      */
     public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class)->withTrashed();
     }
 
     /**

@@ -24,6 +24,7 @@ use Filament\Facades\Filament;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Panel;
+use Filament\Support\Enums\Width;
 use Filament\Widgets\Widget;
 use Illuminate\Validation\ValidationException;
 
@@ -98,6 +99,20 @@ final class Attendance extends Page
     }
 
     /**
+     * One column, phone-shaped, on every screen.
+     *
+     * This page is designed for a thumb at the door in the morning, and a
+     * desktop browser is the same page made wider - not a different one. A
+     * narrow measure keeps the card, the timeline and the history table in a
+     * single readable column instead of stranding a phone layout in the
+     * corner of a 1400px window.
+     */
+    public function getMaxContentWidth(): Width
+    {
+        return Width::TwoExtraLarge;
+    }
+
+    /**
      * @param  array<string, mixed>  $reading
      */
     public function checkIn(array $reading): void
@@ -166,35 +181,97 @@ final class Attendance extends Page
         $settings = AttendanceSetting::current();
         $day = AttendanceDaySummary::forEmployee($employee, $today);
 
-        // The badge reports the last thing that happened: inside while a
+        // The screen reports the last thing that happened: inside while a
         // session is open, otherwise checked out once the day holds one,
         // otherwise not checked in yet. Today's sessions can only be open
         // or closed - "missing check-out" belongs to earlier days and never
         // reaches this screen.
         $status = $day->latestSession()?->status();
+        $state = $status instanceof AttendanceStatus ? $status->value : 'not_checked_in';
 
         // The one query that produced the day also decides whether the
         // browser should be pinging, so the buttons and the ping loop can
         // never disagree about whether a session is open.
         $this->sessionIsOpen = $day->isCheckedIn();
 
+        // Coming back after a check-out is the point of the feature; only a
+        // session still open stands in the way of a check-in.
+        $canCheckIn = $settings->isConfigured() && ! $day->isCheckedIn();
+        $canCheckOut = $settings->isConfigured() && $day->isCheckedIn();
+
         return [
             'employeeName' => $employee->name,
             'todayLabel' => $today->locale(app()->getLocale())->isoFormat('dddd, D MMMM YYYY'),
-            'stateLabel' => __('attendance.page.status.'.($status instanceof AttendanceStatus ? $status->value : 'not_checked_in')),
-            'stateColor' => $status instanceof AttendanceStatus ? $status->color() : 'gray',
+            'state' => $state,
+            'stateLabel' => __('attendance.page.status.'.$state),
+            'stateCaption' => $this->stateCaption($state, $day),
             'sessions' => $this->sessionRows($day),
             'sessionCount' => (string) $day->sessionCount(),
             'totalInside' => SessionDuration::format($day->secondsInside()),
             'isLocationConfigured' => $settings->isConfigured(),
             'radiusMeters' => $settings->radius_meters,
-            // Coming back after a check-out is the point of the feature;
-            // only a session still open stands in the way of a check-in.
-            'canCheckIn' => $settings->isConfigured() && ! $day->isCheckedIn(),
-            'canCheckOut' => $settings->isConfigured() && $day->isCheckedIn(),
+            'canCheckIn' => $canCheckIn,
+            'canCheckOut' => $canCheckOut,
+            'actions' => $this->actionButtons($canCheckIn, $canCheckOut),
             // Milliseconds, because that is what the browser's timers take.
             'pingIntervalMs' => ((int) config('attendance.ping_interval_seconds')) * 1000,
         ];
+    }
+
+    /**
+     * The sentence under the state, which turns a label into a fact the
+     * employee can check against their own memory of the morning.
+     *
+     * Every time it names comes from the sessions already loaded above, so
+     * saying more costs no extra query.
+     */
+    private function stateCaption(string $state, AttendanceDaySummary $day): string
+    {
+        return match ($state) {
+            AttendanceStatus::CheckedIn->value => __('attendance.page.state_caption.checked_in', [
+                'time' => $this->formatTime($day->openSession()?->check_in_at),
+            ]),
+            AttendanceStatus::CheckedOut->value => __('attendance.page.state_caption.checked_out', [
+                'time' => $this->formatTime($day->latestSession()?->check_out_at),
+            ]),
+            default => __('attendance.page.state_caption.not_checked_in'),
+        };
+    }
+
+    /**
+     * The two buttons, the one the employee can actually press first.
+     *
+     * Exactly one of them is available at a time (and neither before the
+     * company location is set), so the order is what makes the screen
+     * obvious: the live action leads and is drawn large, the other follows
+     * as a disabled reminder that it exists. Both are always rendered -
+     * hiding the unavailable one would leave an employee wondering where
+     * check-out went.
+     *
+     * `key` is the Livewire method the browser calls and the value the
+     * Alpine component tracks as `pending`; `alpineFlag` is the property it
+     * re-checks before every submit, so the disabled state survives a round
+     * trip that changed it.
+     *
+     * @return list<array{key: string, label: string, alpineFlag: string, enabled: bool}>
+     */
+    private function actionButtons(bool $canCheckIn, bool $canCheckOut): array
+    {
+        $checkIn = [
+            'key' => 'checkIn',
+            'label' => __('attendance.actions.check_in'),
+            'alpineFlag' => 'canCheckIn',
+            'enabled' => $canCheckIn,
+        ];
+
+        $checkOut = [
+            'key' => 'checkOut',
+            'label' => __('attendance.actions.check_out'),
+            'alpineFlag' => 'canCheckOut',
+            'enabled' => $canCheckOut,
+        ];
+
+        return $canCheckOut ? [$checkOut, $checkIn] : [$checkIn, $checkOut];
     }
 
     /**
@@ -202,7 +279,12 @@ final class Attendance extends Page
      * happened, with every time already formatted in the attendance
      * timezone, so the template only prints.
      *
-     * @return list<array{number: int, checkIn: string, checkOut: string, duration: string}>
+     * A session still running ends at "now" rather than at the dash a
+     * missing check-out would show - it is the one row on the screen that
+     * has not finished, and saying so in a word keeps the timeline readable
+     * without relying on the colour of its marker.
+     *
+     * @return list<array{number: int, checkIn: string, checkOut: string, duration: string, isOpen: bool}>
      */
     private function sessionRows(AttendanceDaySummary $day): array
     {
@@ -215,8 +297,11 @@ final class Attendance extends Page
             $rows[] = [
                 'number' => $number,
                 'checkIn' => $this->formatTime($session->check_in_at),
-                'checkOut' => $this->formatTime($session->check_out_at),
+                'checkOut' => $session->isOpen()
+                    ? __('attendance.page.session_open')
+                    : $this->formatTime($session->check_out_at),
                 'duration' => SessionDuration::format($session->durationInSeconds()),
+                'isOpen' => $session->isOpen(),
             ];
         }
 

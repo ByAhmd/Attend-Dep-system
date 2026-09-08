@@ -29,6 +29,10 @@ final class AttendanceRejectionResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedShieldExclamation;
 
+    // The same glyph filled in, so the entry the reader is standing on
+    // is legible as the current one from the shape alone.
+    protected static string|BackedEnum|null $activeNavigationIcon = Heroicon::ShieldExclamation;
+
     protected static ?int $navigationSort = 2;
 
     public static function getNavigationGroup(): NavigationGroup

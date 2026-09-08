@@ -79,11 +79,18 @@ final class Attendance extends Model
     }
 
     /**
+     * The employee this day belongs to, deleted accounts included.
+     *
+     * Deleting an employee hides the account but keeps their records, and a
+     * record with a blank name is not a kept record. Without withTrashed()
+     * the soft-delete scope makes this relation resolve to null and every
+     * screen listing the day prints an empty name where the person was.
+     *
      * @return BelongsTo<User, $this>
      */
     public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class)->withTrashed();
     }
 
     public function isOpen(): bool

@@ -22,6 +22,13 @@ use Filament\Schemas\Schema;
  * which asks for its own confirmation - an optional password field on the
  * edit form is the classic way to overwrite a password while correcting a
  * typo in a name.
+ *
+ * Role and status lock themselves whenever the signed-in administrator may
+ * not set them, and each says why in its own words rather than greying out
+ * in silence: your own account, the super administrator's, an account still
+ * waiting for its invitation, a deleted one, or a role only the super
+ * administrator may hand out. All of them are presentation; the create and
+ * edit pages strip the keys again before writing.
  */
 final class EmployeeForm
 {
@@ -51,41 +58,62 @@ final class EmployeeForm
                     ])
                     ->columns(1),
 
-                // Role locks when the administrator opens their own account,
-                // and status has no place on the create form: a new account
-                // is pending until its owner sets a password. Both disabled
-                // inputs are presentation only; the edit page strips the
-                // keys again before saving.
                 Section::make(__('employees.sections.access'))
-                    ->description(fn (?User $record): ?string => $record instanceof User
-                        ? null
-                        : __('employees.helpers.invitation_on_create'))
+                    ->description(fn (?User $record): ?string => match (true) {
+                        $record instanceof User && $record->isSuperAdmin() => __('employees.super_admin.protected'),
+                        $record instanceof User => null,
+                        default => __('employees.helpers.invitation_on_create'),
+                    })
                     ->schema([
                         Select::make('role')
                             ->label(__('employees.fields.role'))
                             ->options(UserRole::options())
                             ->required()
                             ->default(UserRole::Employee->value)
-                            ->disabled(fn (?User $record): bool => self::isOwnAccount($record))
-                            ->helperText(fn (?User $record): string => self::isOwnAccount($record)
-                                ? __('employees.helpers.own_access')
-                                : __('employees.helpers.role')),
+                            ->disabled(fn (?User $record): bool => ! EmployeeResource::canManageRole($record))
+                            ->helperText(fn (?User $record): string => self::roleHelper($record)),
 
                         Select::make('status')
                             ->label(__('employees.fields.status'))
                             ->options(fn (?User $record): array => self::statusOptions($record))
                             ->required()
                             ->hiddenOn('create')
-                            ->disabled(fn (?User $record): bool => self::isOwnAccount($record) || self::isPending($record))
-                            ->helperText(fn (?User $record): string => match (true) {
-                                self::isOwnAccount($record) => __('employees.helpers.own_access'),
-                                self::isPending($record) => __('employees.helpers.pending_status'),
-                                default => __('employees.helpers.status'),
-                            }),
+                            ->disabled(fn (?User $record): bool => ! EmployeeResource::canManageAccess($record)
+                                || self::isPending($record))
+                            ->helperText(fn (?User $record): string => self::statusHelper($record)),
                     ])
                     ->columns(1),
             ])
             ->columns(1);
+    }
+
+    /**
+     * Why the role select is locked, or what it does when it is not.
+     *
+     * The super administrator's own row is answered first: their role is
+     * decided by SUPER_ADMIN_EMAIL and the column below it is decoration,
+     * which is a different sentence from "you may not change this one".
+     */
+    private static function roleHelper(?User $record): string
+    {
+        return match (true) {
+            $record instanceof User && $record->isSuperAdmin() => __('employees.super_admin.role_locked'),
+            self::isOwnAccount($record) => __('employees.helpers.own_access'),
+            $record instanceof User && $record->trashed() => __('employees.helpers.deleted_account'),
+            ! EmployeeResource::canManageRole($record) => __('employees.helpers.role_super_admin_only'),
+            default => __('employees.helpers.role'),
+        };
+    }
+
+    private static function statusHelper(?User $record): string
+    {
+        return match (true) {
+            $record instanceof User && $record->isSuperAdmin() => __('employees.super_admin.status_locked'),
+            self::isOwnAccount($record) => __('employees.helpers.own_access'),
+            $record instanceof User && $record->trashed() => __('employees.helpers.deleted_account'),
+            self::isPending($record) => __('employees.helpers.pending_status'),
+            default => __('employees.helpers.status'),
+        };
     }
 
     /**
@@ -116,7 +144,9 @@ final class EmployeeForm
      */
     private static function isOwnAccount(?User $record): bool
     {
-        return $record instanceof User && ! EmployeeResource::canManageAccess($record);
+        $user = auth()->user();
+
+        return $record instanceof User && $user instanceof User && $record->is($user);
     }
 
     private static function isPending(?User $record): bool

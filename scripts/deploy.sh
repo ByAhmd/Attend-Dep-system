@@ -117,6 +117,15 @@ echo "==> Rebuilding caches"
 "${PHP_CMD[@]}" artisan event:cache
 "${PHP_CMD[@]}" artisan filament:optimize
 
+# Says who the super administrator is, and warns when SUPER_ADMIN_EMAIL is
+# blank or names no account. Never fails the deployment: the site is
+# already migrated by this point and a missing setting is something to
+# read and fix, not a reason to leave the application down. It matters
+# because with the setting blank nobody can delete an account or change
+# a role - the two powers reserved for that address.
+echo "==> Super administrator"
+"${PHP_CMD[@]}" artisan app:super-admin || true
+
 echo "==> Live"
 "${PHP_CMD[@]}" artisan up
 

@@ -54,7 +54,10 @@ final class EditAttendanceSetting extends EditRecord
      * No delete: the row is the configuration, and the model would only
      * recreate it blank. The one header action opens the saved location
      * on a map, which is the quickest way to spot a swapped pair of
-     * coordinates.
+     * coordinates - so it is outlined in the brand colour rather than
+     * filled grey. Grey reads as "not for you" on a screen whose only
+     * other button is Save, and this is the check somebody should be
+     * invited to make every time they change these two numbers.
      */
     protected function getHeaderActions(): array
     {
@@ -62,7 +65,8 @@ final class EditAttendanceSetting extends EditRecord
             Action::make('preview')
                 ->label(__('settings.helpers.preview'))
                 ->icon(Heroicon::OutlinedMap)
-                ->color('gray')
+                ->color('primary')
+                ->outlined()
                 ->url(function (): ?string {
                     $coordinates = $this->settings()->coordinates();
 
