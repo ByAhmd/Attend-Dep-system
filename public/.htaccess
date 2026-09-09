@@ -23,3 +23,42 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# Two response headers this application cannot set from PHP.
+#
+# Hostinger's web server writes its own headers after the application has
+# answered, and a Header directive in the server's own configuration replaces
+# what PHP sent. A directive here runs later still and wins, which is why
+# these two live in .htaccess and everything else lives in SecurityHeaders.
+# Both are wrapped so that a server without mod_headers simply skips them
+# rather than refusing to serve the site.
+<IfModule mod_headers.c>
+    # The server replaces our policy with its own `upgrade-insecure-requests`,
+    # which carries no fetch directive and so protects nothing - the site
+    # looked protected and was not. This string must stay identical to
+    # SecurityHeaders::CONTENT_SECURITY_POLICY; SecurityHeadersTest fails if
+    # the two ever drift, because two copies of a policy that disagree are
+    # worse than one copy in the wrong place.
+    #
+    # The leave attachment keeps its own far stricter policy. It is a file
+    # somebody uploaded, handed back from our own origin, and it must never
+    # be able to run anything - so it is excepted here rather than quietly
+    # loosened to match every other page.
+    <IfModule mod_setenvif.c>
+        SetEnvIf Request_URI "^/leave-requests/[0-9]+/attachment$" MAKANI_UPLOADED_FILE=1
+    </IfModule>
+
+    Header always set Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self'; connect-src 'self' blob:; worker-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; upgrade-insecure-requests" env=!MAKANI_UPLOADED_FILE
+    Header always set Content-Security-Policy "default-src 'none'; sandbox" env=MAKANI_UPLOADED_FILE
+
+    # LiteSpeed advertises QUIC itself, and on Saudi mobile networks that
+    # connection intermittently collapses: measured at 22 seconds for a page
+    # that takes 0.7 over TCP, and 8 seconds or more for a 107 KB script that
+    # takes under one. The application is not slow; this conversation is.
+    #
+    # `clear` rather than unsetting the header: RFC 7838 gives that value the
+    # meaning "discard every alternative service you have cached for this
+    # origin". Merely removing the header would leave every phone that has
+    # already seen it pinned to HTTP/3 for the thirty days it advertised.
+    Header always set Alt-Svc "clear"
+</IfModule>

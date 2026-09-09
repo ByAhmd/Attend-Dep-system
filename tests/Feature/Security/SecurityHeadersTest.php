@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Security;
 
+use App\Http\Middleware\SecurityHeaders;
 use App\Models\LeaveRequest;
 use App\Models\User;
 use App\Services\Leave\LeaveAttachmentStore;
@@ -245,6 +246,72 @@ final class SecurityHeadersTest extends TestCase
     private function policy(TestResponse $response): string
     {
         return (string) $response->headers->get('Content-Security-Policy');
+    }
+
+    /**
+     * The two copies of the policy must say the same thing.
+     *
+     * Hostinger's web server replaces the Content-Security-Policy this
+     * middleware sets, so public/.htaccess sets it again at a layer that
+     * runs afterwards. That is two copies of one rule, and two copies drift:
+     * somebody adds a directive here for a new feature, production keeps
+     * serving the old policy, and the failure is silent because the header
+     * is still present and still looks right. This test is the thing that
+     * refuses to let that happen.
+     */
+    #[Test]
+    public function the_server_level_policy_matches_the_one_this_middleware_sets(): void
+    {
+        $htaccess = (string) file_get_contents(public_path('.htaccess'));
+
+        $expected = SecurityHeaders::contentSecurityPolicy();
+
+        $this->assertStringContainsString(
+            'Header always set Content-Security-Policy "'.$expected.'" env=!MAKANI_UPLOADED_FILE',
+            $htaccess,
+            'public/.htaccess serves a different Content-Security-Policy from the one this middleware sets. '
+            .'Update the .htaccess string to match SecurityHeaders::CONTENT_SECURITY_POLICY.',
+        );
+    }
+
+    /**
+     * A file somebody uploaded keeps the policy that lets it do nothing.
+     *
+     * The .htaccess rule above would otherwise hand the attachment download
+     * the same policy as every ordinary page, which is far looser than a
+     * response made of bytes a stranger chose deserves.
+     */
+    #[Test]
+    public function the_server_level_rule_excepts_the_uploaded_file(): void
+    {
+        $htaccess = (string) file_get_contents(public_path('.htaccess'));
+
+        $this->assertStringContainsString(
+            'SetEnvIf Request_URI "^/leave-requests/[0-9]+/attachment$" MAKANI_UPLOADED_FILE=1',
+            $htaccess,
+        );
+
+        $this->assertStringContainsString(
+            'Header always set Content-Security-Policy "default-src \'none\'; sandbox" env=MAKANI_UPLOADED_FILE',
+            $htaccess,
+        );
+    }
+
+    /**
+     * The origin advertises HTTP/3 and this site asks browsers to forget it.
+     *
+     * `clear` is RFC 7838's value for "discard the alternative services you
+     * have cached for this origin". Removing the header instead would leave
+     * every phone that has already seen it pinned to HTTP/3 for the thirty
+     * days the server advertised - which is the whole problem, not the fix.
+     */
+    #[Test]
+    public function the_site_asks_browsers_to_forget_the_http3_alternative(): void
+    {
+        $this->assertStringContainsString(
+            'Header always set Alt-Svc "clear"',
+            (string) file_get_contents(public_path('.htaccess')),
+        );
     }
 
     private function permissions(TestResponse $response): string
