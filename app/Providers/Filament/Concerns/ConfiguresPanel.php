@@ -9,7 +9,7 @@ use App\Http\Middleware\EnsureAccountIsActive;
 use App\Http\Middleware\SetLocale;
 use App\Support\Filament\InitialsAvatarProvider;
 use App\Support\Filament\LanguageMenuItems;
-use Filament\FontProviders\BunnyFontProvider;
+use Filament\FontProviders\LocalFontProvider;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -83,10 +83,16 @@ trait ConfiguresPanel
             // Arabic and Latin drawn on one skeleton: the screens mix a time
             // like 08:02 with the label beside it in every row, and Plex
             // Arabic keeps the two scripts on the same rhythm and its digits
-            // unambiguous at table sizes. Bunny is Filament's own provider
-            // for a custom family, serves the Arabic and Latin subsets
-            // separately behind unicode-range, and sets no cookies.
-            ->font('IBM Plex Sans Arabic', provider: BunnyFontProvider::class)
+            // unambiguous at table sizes.
+            //
+            // The faces are served from this origin. LocalFontProvider with
+            // no URL emits nothing at all, which is the point: the eight
+            // @font-face rules are in the theme stylesheet the panel already
+            // loads, so there is no second stylesheet to fetch and no
+            // third-party host in the critical path of an Arabic page. Only
+            // the family name matters here - Filament writes it into
+            // --font-family, which the theme's --font-sans is built from.
+            ->font('IBM Plex Sans Arabic', provider: LocalFontProvider::class)
             ->darkMode()
             ->brandName(fn (): string => (string) __('app.name'))
             ->brandLogo(fn (): View => view('filament.partials.brand-mark'))

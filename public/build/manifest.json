@@ -1,11 +1,53 @@
 {
   "resources/css/filament/theme.css": {
-    "file": "assets/theme-B_eW6OJM.css",
+    "file": "assets/theme-COkiHdG6.css",
     "name": "theme",
     "names": [
       "theme.css"
     ],
     "src": "resources/css/filament/theme.css",
-    "isEntry": true
+    "isEntry": true,
+    "assets": [
+      "assets/ibm-plex-sans-arabic-latin-400-normal-Bo5KPYvw.woff2",
+      "assets/ibm-plex-sans-arabic-latin-500-normal-Cd6jVIg7.woff2",
+      "assets/ibm-plex-sans-arabic-latin-600-normal-KrqB56Mw.woff2",
+      "assets/ibm-plex-sans-arabic-latin-700-normal-BzSf6GNr.woff2",
+      "assets/ibm-plex-sans-arabic-arabic-400-normal-CyU-ddYS.woff2",
+      "assets/ibm-plex-sans-arabic-arabic-500-normal-C4MQITzh.woff2",
+      "assets/ibm-plex-sans-arabic-arabic-600-normal-0pRdybE_.woff2",
+      "assets/ibm-plex-sans-arabic-arabic-700-normal-DrtBj6UE.woff2"
+    ]
+  },
+  "resources/fonts/ibm-plex-sans-arabic/ibm-plex-sans-arabic-arabic-400-normal.woff2": {
+    "file": "assets/ibm-plex-sans-arabic-arabic-400-normal-CyU-ddYS.woff2",
+    "src": "resources/fonts/ibm-plex-sans-arabic/ibm-plex-sans-arabic-arabic-400-normal.woff2"
+  },
+  "resources/fonts/ibm-plex-sans-arabic/ibm-plex-sans-arabic-arabic-500-normal.woff2": {
+    "file": "assets/ibm-plex-sans-arabic-arabic-500-normal-C4MQITzh.woff2",
+    "src": "resources/fonts/ibm-plex-sans-arabic/ibm-plex-sans-arabic-arabic-500-normal.woff2"
+  },
+  "resources/fonts/ibm-plex-sans-arabic/ibm-plex-sans-arabic-arabic-600-normal.woff2": {
+    "file": "assets/ibm-plex-sans-arabic-arabic-600-normal-0pRdybE_.woff2",
+    "src": "resources/fonts/ibm-plex-sans-arabic/ibm-plex-sans-arabic-arabic-600-normal.woff2"
+  },
+  "resources/fonts/ibm-plex-sans-arabic/ibm-plex-sans-arabic-arabic-700-normal.woff2": {
+    "file": "assets/ibm-plex-sans-arabic-arabic-700-normal-DrtBj6UE.woff2",
+    "src": "resources/fonts/ibm-plex-sans-arabic/ibm-plex-sans-arabic-arabic-700-normal.woff2"
+  },
+  "resources/fonts/ibm-plex-sans-arabic/ibm-plex-sans-arabic-latin-400-normal.woff2": {
+    "file": "assets/ibm-plex-sans-arabic-latin-400-normal-Bo5KPYvw.woff2",
+    "src": "resources/fonts/ibm-plex-sans-arabic/ibm-plex-sans-arabic-latin-400-normal.woff2"
+  },
+  "resources/fonts/ibm-plex-sans-arabic/ibm-plex-sans-arabic-latin-500-normal.woff2": {
+    "file": "assets/ibm-plex-sans-arabic-latin-500-normal-Cd6jVIg7.woff2",
+    "src": "resources/fonts/ibm-plex-sans-arabic/ibm-plex-sans-arabic-latin-500-normal.woff2"
+  },
+  "resources/fonts/ibm-plex-sans-arabic/ibm-plex-sans-arabic-latin-600-normal.woff2": {
+    "file": "assets/ibm-plex-sans-arabic-latin-600-normal-KrqB56Mw.woff2",
+    "src": "resources/fonts/ibm-plex-sans-arabic/ibm-plex-sans-arabic-latin-600-normal.woff2"
+  },
+  "resources/fonts/ibm-plex-sans-arabic/ibm-plex-sans-arabic-latin-700-normal.woff2": {
+    "file": "assets/ibm-plex-sans-arabic-latin-700-normal-BzSf6GNr.woff2",
+    "src": "resources/fonts/ibm-plex-sans-arabic/ibm-plex-sans-arabic-latin-700-normal.woff2"
   }
 }

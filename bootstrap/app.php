@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\EnsureAccountIsActive;
+use App\Http\Middleware\SecurityHeaders;
 use Illuminate\Contracts\Auth\Middleware\AuthenticatesRequests;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -14,6 +15,20 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Global rather than on the `web` group: both Filament panels declare
+        // their own middleware stacks and never join that group, and the
+        // panels are the whole product.
+        //
+        // Prepended rather than appended so it is the outermost middleware
+        // in the stack. Everything thrown further in - a 404 from the router,
+        // a 403 from a policy, the 503 of `artisan down` - is caught by the
+        // pipeline and rendered into a response that travels back out through
+        // here, so the error pages carry the same headers the ordinary ones
+        // do. Appended, it would sit inside the middleware that throw those,
+        // and exactly the responses shown to somebody poking at the site
+        // would be the ones without a policy on them.
+        $middleware->prepend(SecurityHeaders::class);
+
         // Route middleware is re-sorted by the kernel priority list. Filament's
         // Authenticate carries the AuthenticatesRequests priority and is pulled
         // ahead of anything without a slot - whatever order the panel declares.

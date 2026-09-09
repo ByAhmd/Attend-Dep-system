@@ -14,7 +14,7 @@ no Docker, no scheduler is required.
 | Web server | nginx or Apache with the document root at **`public/`** |
 | HTTPS | **Required** — browsers refuse geolocation on plain HTTP |
 | Composer | 2.x on the server, or upload `vendor/` built elsewhere |
-| Node.js | **Not required on the server.** The compiled theme in `public/build` is committed, and CI fails if it is stale. Node is only needed on a developer machine that changes the theme. |
+| Node.js | **Not required on the server.** The compiled theme in `public/build` is committed, and CI fails if it is stale. Node is only needed on a developer machine that changes the theme. The eight IBM Plex Sans Arabic woff2 files are part of that build — the interface fetches no font from anybody else, so nothing outside your own server has to be reachable for Arabic text to render in the right face. |
 
 `composer.lock` is resolved for PHP 8.3 (`config.platform.php` in `composer.json`), so the
 same lock installs on 8.3 and 8.4 hosts alike.
@@ -58,6 +58,9 @@ QUEUE_CONNECTION=sync
 ATTENDANCE_MAX_ACCURACY_METERS=100
 ATTENDANCE_PING_INTERVAL_SECONDS=300
 ```
+
+`SECURITY_HSTS_MAX_AGE` is optional and explained in section 8b. Leave it out unless you
+are switching HSTS on for the first time and want to start with a short promise.
 
 ### Invitation email (optional)
 
@@ -291,6 +294,53 @@ so on a plan without SSH upload your local `vendor/` folder with File Manager as
 
 Do **not** build a database dump for this. The migrations are the schema; a dump is a
 second copy of it that silently goes stale.
+
+## 8b. Response security headers
+
+The application sets its own headers on every response, from
+`app/Http/Middleware/SecurityHeaders.php`. Nothing has to be configured on the web server,
+and nothing should be: a second copy of these rules in nginx or `.htaccess` is a second
+copy to keep in step.
+
+After a deployment, read them back once:
+
+```bash
+curl -sI https://your-domain/login | grep -iE \
+  'content-security-policy|permissions-policy|strict-transport|x-frame|x-content-type|referrer-policy|x-powered-by'
+```
+
+Four things are worth actually looking at in that output.
+
+**`geolocation=(self)` must be in `Permissions-Policy`.** It is the one line the product
+cannot lose. If it is missing or reads `geolocation=()`, no employee can check in, the
+browser gives them an error they cannot act on, and nothing in the application will report
+the fault. Nothing else in this list can break the product; this can.
+
+**`x-powered-by` must not be there.** PHP adds it when `expose_php` is on, which it is on
+Hostinger and which is a `php.ini` setting you cannot change from the application, so the
+middleware removes it from the header list before the response is sent. If it comes back,
+the web server is adding it after PHP, and that one has to be turned off at the server.
+
+**`content-security-policy` may appear twice.** Hostinger's CDN injects a policy of its own
+containing `upgrade-insecure-requests` and nothing else. Browsers apply two policies as an
+intersection rather than merging them, and a policy with no fetch directives cannot narrow
+anything, so two headers here are harmless — and the application's own policy keeps
+`upgrade-insecure-requests` in it so the behaviour survives either way. What would be worth
+knowing is the opposite case: if only the edge's short policy comes back and the
+application's long one is gone, the CDN is replacing rather than appending, and the site is
+running without the policy it thinks it has.
+
+**`strict-transport-security` appears in production only.** It tells a browser to refuse
+plain HTTP for this host for a year, and a browser that has been told cannot be untold
+early — lowering the value only reaches people who come back and read the new one. That is
+safe here, because this application cannot work over HTTP at all: a browser will not report
+a position outside a secure context. If you would rather not take a year's promise on
+faith, set `SECURITY_HSTS_MAX_AGE=300` in `.env` for the first deployment, confirm that
+every way into the site is genuinely HTTPS, then remove the line and run
+`php artisan config:cache` again. The header deliberately carries neither
+`includeSubDomains`, which would speak for host names that are not this application's, nor
+`preload`, which is a submission to a list shipped inside browsers and takes months to
+leave.
 
 ## 9. Initial administrator
 
