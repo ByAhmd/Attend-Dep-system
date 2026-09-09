@@ -187,7 +187,7 @@ final class SecurityHeaders
         // that with the policy a Filament page needs - inline script, eval,
         // blob workers - would be a straight loss. So the response wins.
         if (! $headers->has('Content-Security-Policy')) {
-            $headers->set('Content-Security-Policy', implode('; ', self::CONTENT_SECURITY_POLICY));
+            $headers->set('Content-Security-Policy', self::contentSecurityPolicy());
         }
 
         $headers->set('Permissions-Policy', implode(', ', self::PERMISSIONS_POLICY));
@@ -237,5 +237,19 @@ final class SecurityHeaders
         );
 
         return $response;
+    }
+
+    /**
+     * The policy as one header value.
+     *
+     * Public because it is stated in two places and only one of them is
+     * PHP: Hostinger's web server replaces this header after the
+     * application has answered, so public/.htaccess sets it again at a
+     * layer that runs later. This accessor is what lets a test hold the two
+     * copies side by side and fail when they stop agreeing.
+     */
+    public static function contentSecurityPolicy(): string
+    {
+        return implode('; ', self::CONTENT_SECURITY_POLICY);
     }
 }
