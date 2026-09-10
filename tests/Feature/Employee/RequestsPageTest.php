@@ -26,10 +26,10 @@ use Tests\TestCase;
  * /requests: the screen that tells an employee what became of what they
  * asked for.
  *
- * This page is the notification mechanism - there is no email and no bell -
- * so the two things worth proving hardest are that it shows the reader their
- * own requests and nobody else's, and that a rejection arrives with the note
- * that explains it.
+ * The bell announces a decision; this page is where it is read in full, and
+ * unlike a notification it is never cleared. So the two things worth proving
+ * hardest are that it shows the reader their own requests and nobody else's,
+ * and that a rejection arrives with the note that explains it.
  */
 final class RequestsPageTest extends TestCase
 {

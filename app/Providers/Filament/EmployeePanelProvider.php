@@ -53,6 +53,18 @@ final class EmployeePanelProvider extends PanelProvider
                 // without this entry the administration panel is reachable
                 // only by typing its address.
                 ->userMenuItems(PanelSwitchMenuItems::toAdminPanel())
+                // The bell fills when the page loads, and then never asks
+                // again. This panel is opened on a phone, on mobile data, at
+                // the door, and it is left open: a session lasts a shift, and
+                // Filament's default would spend that shift making a request
+                // every thirty seconds to a server in another country -
+                // roughly a thousand per person per day, on somebody's own
+                // data allowance, to deliver news that arrives a few times a
+                // month. Learning of a decision on the next page load instead
+                // of within thirty seconds costs the employee nothing: the
+                // decision was made hours or days ago, and طلباتي has held it
+                // in full the whole time.
+                ->databaseNotificationsPolling(null)
                 ->navigation(false)
                 // A phone-width card even on a desktop: the screen is two
                 // buttons and a status, and stretching it adds nothing.

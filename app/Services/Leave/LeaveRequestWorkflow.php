@@ -7,6 +7,8 @@ namespace App\Services\Leave;
 use App\Data\Leave\LeaveDraft;
 use App\Enums\LeaveRefusalReason;
 use App\Enums\RequestStatus;
+use App\Events\RequestDecided;
+use App\Events\RequestSubmitted;
 use App\Exceptions\Leave\LeaveRequestRefusedException;
 use App\Models\LeaveRequest;
 use App\Models\User;
@@ -39,6 +41,12 @@ use InvalidArgumentException;
  *
  * Past start dates are allowed on purpose. A sick day is reported after the
  * fact, and that is the normal case, not the exception.
+ *
+ * Filing one and deciding one each announce themselves with an event once
+ * the transaction has returned, exactly as AttendanceCorrectionWorkflow
+ * does and for the same reason: a request that was refused, or a decision
+ * that rolled back, must be announced to nobody. Who is told lives in
+ * app/Listeners and is no concern of this service.
  */
 final readonly class LeaveRequestWorkflow
 {
@@ -76,7 +84,7 @@ final readonly class LeaveRequestWorkflow
         }
 
         try {
-            return DB::transaction(function () use ($employee, $draft): LeaveRequest {
+            $request = DB::transaction(function () use ($employee, $draft): LeaveRequest {
                 if ($this->clashes($employee, $draft->startsOn, $draft->endsOn, null, includePending: true)) {
                     throw new LeaveRequestRefusedException(LeaveRefusalReason::Overlapping);
                 }
@@ -107,6 +115,12 @@ final readonly class LeaveRequestWorkflow
             // sentence for both: the days are already asked for.
             throw new LeaveRequestRefusedException(LeaveRefusalReason::Overlapping);
         }
+
+        // Outside the transaction, so a refused request announces nothing and
+        // nothing a listener does can reach the row that was written.
+        RequestSubmitted::dispatch($request);
+
+        return $request;
     }
 
     /**
@@ -139,7 +153,7 @@ final readonly class LeaveRequestWorkflow
     private function decide(LeaveRequest $request, User $decidedBy, RequestStatus $status, ?string $note): LeaveRequest
     {
         try {
-            return DB::transaction(function () use ($request, $decidedBy, $status, $note): LeaveRequest {
+            $decided = DB::transaction(function () use ($request, $decidedBy, $status, $note): LeaveRequest {
                 $locked = LeaveRequest::query()
                     ->whereKey($request->getKey())
                     ->lockForUpdate()
@@ -184,6 +198,10 @@ final readonly class LeaveRequestWorkflow
 
             throw new LeaveRequestRefusedException(LeaveRefusalReason::CouldNotBeApplied);
         }
+
+        RequestDecided::dispatch($decided);
+
+        return $decided;
     }
 
     /**

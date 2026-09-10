@@ -11,15 +11,21 @@ and may **request leave**; an administrator approves or rejects each with a note
 account carries a **job title** and an **employment type**, which are descriptions of
 a person and never permissions.
 
+Both panels carry a **notification bell**, and it announces exactly four moments: a
+correction or a leave request arriving, for every administrator, and that request
+being approved or rejected, for the one employee who filed it. Nothing else is ever
+notified.
+
 **That is the whole business scope.** No payroll; no work schedules or shifts, and
 therefore no lateness, permitted lateness, overtime or hour accrual; no departments or
 teams, and therefore no team leave; no biometric hardware and none of its vocabulary;
-no announcements, messaging or push; no profile editing or avatars, and the one file
-anybody may upload is the document supporting a leave request; no reports beyond the
-attendance list; no API; no multi-company; no second allowed location. Each of those
-absences is a decision, not an omission: Makani says only what it can prove, and a
-figure subtracted from a schedule nobody recorded is an accusation the system cannot
-support.
+no announcements feed, no messaging, no email and no push - the bell is a bell about
+requests and is not a channel anybody may broadcast on; no profile editing or avatars,
+and the one file anybody may upload is the document supporting a leave request; no
+reports beyond the attendance list; no API; no multi-company; no second allowed
+location. Each of those absences is a decision, not an omission: Makani says only what
+it can prove, and a figure subtracted from a schedule nobody recorded is an accusation
+the system cannot support.
 
 Technical work needed to make the above reliable and secure is in scope; new business
 features are not.
@@ -60,8 +66,8 @@ Two Filament panels, explicit registration (no directory discovery):
 
 | Panel | Path | Who | Contents |
 |---|---|---|---|
-| `employee` (default) | `/` (`/login`, `/`, `/requests`) | every active account | `App\Filament\Employee\Pages\Attendance` + history widget; `Pages\Requests` + the two request widgets |
-| `admin` | `/admin` | administrators | Employees, Job titles, Attendance records, Rejected attempts, Presence pings, Correction requests, Leave requests, Attendance settings, Dashboard |
+| `employee` (default) | `/` (`/login`, `/`, `/requests`) | every active account | `App\Filament\Employee\Pages\Attendance` + history widget; `Pages\Requests` + the two request widgets; the bell |
+| `admin` | `/admin` | administrators | Employees, Job titles, Attendance records, Rejected attempts, Presence pings, Correction requests, Leave requests, Attendance settings, Dashboard; the bell |
 
 Layers, exactly as in the ZonKSA/StockFlow projects:
 
@@ -70,28 +76,39 @@ app/Enums/                 UserRole, UserStatus, EmploymentType, AttendanceStatu
                            AttendanceAction, AttendanceRejectionReason, RequestStatus,
                            CorrectionReason, LeaveType, NavigationGroup — label() +
                            options(); CorrectionRefusalReason and LeaveRefusalReason
-                           carry message() and no label(), so the parity test's glob
-                           does not find them and must not be told to;
+                           carry message(), and RequestKind carries only icon(), so
+                           the parity test's glob does not find any of the three and
+                           must not be told to;
                            Locale (ar/en, nativeLabel(), other(), current())
 app/Support/Geo/           Coordinates, LocationReading (validated value objects), Meters,
                            GoogleMapsLink (map URL for a stored position)
 app/Support/Filament/      PanelAccess — which panel a user may enter;
-                           LanguageMenuItems — the language entry of the user menu
+                           LanguageMenuItems — the language entry of the user menu;
+                           RequestNoticeLink — where a line in the bell opens, panel
+                           named explicitly because both bells hold both kinds
 app/Support/Attendance/    SessionDuration — hours and minutes, as Meters is for distance
 app/Data/Attendance/       LocationVerification — the backend verdict on one reading;
                            CorrectionDraft — what the employee stated on the form
 app/Data/Leave/            LeaveDraft
+app/Data/Requests/         RequestNotice — one line in somebody's bell, held as facts
+                           rather than as a finished sentence
 app/Services/Geolocation/  DistanceCalculator (haversine), LocationReadingValidator
 app/Services/Attendance/   AttendanceCalendar, LocationVerifier, AttendanceWorkflow,
                            AttendanceDashboardMetrics, AttendanceDaySummary (one
                            employee's day as its sessions), PresencePingRecorder,
                            CorrectionQuota, AttendanceCorrectionWorkflow
 app/Services/Leave/        LeaveRequestWorkflow, LeaveConflicts
-app/Services/Requests/     RequestQueueMetrics, EmployeeRequestCounts
+app/Services/Requests/     RequestQueueMetrics, EmployeeRequestCounts,
+                           RequestAudience — who counts as an administrator to notify
 app/Services/Users/        EmployeeInvitationService + Invitation (url, emailed)
-app/Notifications/         EmployeeInvitationNotification
+app/Events/                RequestSubmitted, RequestDecided — dispatched by the two
+                           workflows AFTER their transaction has returned, never inside
+app/Notifications/         EmployeeInvitationNotification, NewRequestNotification,
+                           RequestDecisionNotification (database channel only, unqueued)
 app/Listeners/             ActivateInvitedEmployee — Pending becomes Active on first
-                           password set; discovered automatically from app/Listeners
+                           password set; NotifyAdministratorsOfNewRequest and
+                           NotifyEmployeeOfDecision — both swallow and log every
+                           failure; all discovered automatically from app/Listeners
 app/Exceptions/Attendance/ AttendanceRejectedException (reason enum + verification),
                            AttendanceCorrectionRefusedException
 app/Exceptions/Leave/      LeaveRequestRefusedException
@@ -107,8 +124,10 @@ app/Filament/Auth/         ResetPassword — the stock page admits a Pending acc
                            invitation can be accepted; Inactive is still refused
 app/Filament/Resources/    admin resources: <Name>Resource + Schemas/ + Tables/ + Pages/
                            (+ Actions/ for actions shared by a table and an edit page)
-app/Filament/Pages|Widgets admin dashboard
+app/Filament/Pages|Widgets admin dashboard; neither stats widget polls
 app/Filament/Employee/     employee panel page + widgets
+app/Filament/Notifications RequestNotices — Filament's bell with one method replaced,
+                           the one that turns a stored row into a sentence
 app/Providers/Filament/    AdminPanelProvider, EmployeePanelProvider, Concerns/ConfiguresPanel
 lang/ar, lang/en           every user-facing string; Arabic is the default locale
                            (APP_LOCALE=ar), English the fallback; parity is tested
@@ -187,6 +206,28 @@ The Filament layer validates input (`LocationReadingValidator`), calls
 - Nobody decides their own request, administrators included. Approving a correction or a
   leave request is an ordinary administrator's power; the super administrator's reserved
   acts stay exactly two. Nothing anywhere in the interface says which account that is.
+- A request arriving notifies **every** administrator except the person who filed it; a
+  decision notifies **only** the employee who filed it. "Administrator" is
+  `RequestAudience`: not deleted, and either `role = admin` or the address pinned in
+  SUPER_ADMIN_EMAIL. Status is deliberately not filtered, because the pinned account is
+  always active whatever its column says and filtering would make its bell observably
+  different from a deactivated colleague's.
+- A notification is written **after** the write it is about has committed, by a listener
+  that swallows and logs every failure. An employee's request is recorded even if the
+  bell cannot be, an amendment already on the disk is never undone by a notification, and
+  a decision that rolled back is announced to nobody.
+- A `notifications` row stores the facts - kind, request id, name, dates, status, note -
+  and never a rendered sentence, because language here is a cookie and a stored Arabic
+  line would still be Arabic to somebody who has since switched to English. The sentence
+  is composed when the bell is opened. Free text interpolated into it (a name, a note) is
+  wrapped in a first-strong isolate so its script cannot reverse the line around it.
+- The employee bell does **not** poll; the admin bell polls every 300s; no widget polls
+  at all. The server is ~300 ms from Riyadh and the employee panel lives on a phone on
+  mobile data for a whole shift, so a poll is the most expensive thing on these screens.
+  Both intervals are pinned in `tests/Feature/Performance/NotificationCostTest.php`.
+- Nothing prunes `notifications`. Fifteen people filing a few requests a week produce a
+  few thousand rows a year behind a covering index; the reader clears their own with the
+  bell's own button, and there is no cron on this host to add a command to.
 - Company coordinates, radius and the monthly correction allowance live only in
   `attendance_settings` (single row, `AttendanceSetting::current()`); the default radius
   150 and the default allowance 3 are in `config/attendance.php`.

@@ -47,6 +47,20 @@ final class RequestsQueueWidget extends StatsOverviewWidget
     protected static bool $isLazy = false;
 
     /**
+     * And never asked for again.
+     *
+     * Filament polls a stats widget every five seconds by default, which on
+     * this deployment is a round trip to Riyadh twelve times a minute, per
+     * open tab, for as long as the dashboard is left on a screen - some
+     * eleven thousand requests in a working day for two widgets. What it
+     * buys is a queue figure that ticks on its own, and nobody in a company
+     * of fifteen is watching this page for a request to arrive: the bell
+     * says one has, and it says so every five minutes rather than every
+     * five seconds.
+     */
+    protected ?string $pollingInterval = null;
+
+    /**
      * @return array<int, Stat>
      */
     protected function getStats(): array

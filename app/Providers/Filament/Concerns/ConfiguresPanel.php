@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Providers\Filament\Concerns;
 
 use App\Enums\Locale;
+use App\Filament\Notifications\RequestNotices;
 use App\Http\Middleware\EnsureAccountIsActive;
 use App\Http\Middleware\SetLocale;
 use App\Support\Filament\InitialsAvatarProvider;
@@ -26,7 +27,7 @@ use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 /**
  * What both panels share: colours, typeface, brand, theme, the language
- * switch, and the middleware stack.
+ * switch, the notification bell, and the middleware stack.
  *
  * SetLocale runs after the cookie and session middleware and is persistent,
  * so Livewire re-renders keep the chosen language. The auth stack signs out
@@ -102,6 +103,19 @@ trait ConfiguresPanel
             // Drawn here, not fetched from ui-avatars.com - see the provider
             // for what that request was costing.
             ->defaultAvatarProvider(InitialsAvatarProvider::class)
+            // The bell. Our own component because a stored notification here
+            // holds facts rather than a finished sentence - see
+            // RequestNotices - and eager because Filament's default defers it
+            // into a second HTTP request after the page has painted. This
+            // panel already refuses that for its widgets, and the reason is
+            // stronger for the bell: the server is 300ms from Riyadh, and an
+            // extra round trip on every page load to draw an icon that is
+            // usually empty is the most expensive way to render nothing.
+            //
+            // How often it then asks again is decided per panel, because the
+            // two panels are opened by different people on different devices
+            // for different lengths of time.
+            ->databaseNotifications(livewireComponent: RequestNotices::class, isLazy: false)
             ->userMenuItems(LanguageMenuItems::userMenuActions())
             // Every signed-out screen - sign in, and the reset page an
             // invited employee lands on - is a Filament "simple" page, so

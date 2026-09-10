@@ -22,11 +22,14 @@ use Filament\Widgets\Widget;
  * The employee's second and last screen: what they asked for, and what
  * became of it.
  *
- * This page IS the notification mechanism. There is no email and no bell:
- * mail is logged rather than sent on this host and the queue runs
+ * This page holds every decision in full, and the bell in the top bar only
+ * says that one has arrived. The division is deliberate: a notification row
+ * is a copy of a moment and is cleared by whoever reads it, while this table
+ * is the record and is never cleared, so a decision an employee dismissed on
+ * a crowded morning is still here in the afternoon. There is no email either
+ * way - mail is logged rather than sent on this host and the queue runs
  * synchronously, so a decision announced by email would be a decision
- * announced nowhere. A state printed on a screen the employee already opens
- * every morning cannot fail to arrive.
+ * announced nowhere.
  *
  * Not in the navigation, because the employee panel has none. It is reached
  * from the tile band on the attendance screen, which is one tap from the two

@@ -57,6 +57,18 @@ final class AdminPanelProvider extends PanelProvider
                 // more than any of these tables is short of, and Filament
                 // remembers the choice per reader.
                 ->sidebarCollapsibleOnDesktop()
+                // Five minutes, against Filament's default of thirty
+                // seconds. A poll is a whole round trip to a server 300ms
+                // away, and it re-renders the list as well as the count, so
+                // an administrator sitting on the dashboard for a working
+                // day costs 960 of them at the default and 96 at this. What
+                // that buys is knowing about a request four and a half
+                // minutes sooner - a request that arrives twice a week and
+                // is answered in a day. The interval is here rather than in
+                // the shared trait because it is a statement about this
+                // panel's readers: a handful of people, on a desktop, who
+                // are the ones who have to act.
+                ->databaseNotificationsPolling('300s')
                 ->navigationGroups($this->navigationGroups())
                 ->resources([
                     EmployeeResource::class,
