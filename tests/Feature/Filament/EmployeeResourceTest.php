@@ -750,25 +750,273 @@ final class EmployeeResourceTest extends TestCase
 
     #[Test]
     #[DataProvider('locales')]
-    public function the_designated_accounts_locked_selects_say_what_every_other_locked_row_says(string $locale): void
+    public function the_designated_accounts_locked_selects_say_what_every_other_administrators_say(string $locale): void
     {
         // The lock itself cannot be hidden without removing a power. What
         // can be hidden is the reason: an ordinary administrator reads the
-        // same two sentences here as on any account they may not change,
-        // and a sentence written only for this row would be the tell.
+        // same two sentences on this account as on any colleague's, and a
+        // sentence written only for this row would be the tell.
         App::setLocale($locale);
 
         $designated = $this->makeAdmin('owner@company.test');
         config(['admin.super_admin_email' => 'owner@company.test']);
 
-        $employee = $this->makeEmployee();
+        $colleague = $this->makeAdmin('colleague@company.test');
 
-        foreach ([$designated, $employee] as $record) {
+        foreach ([$designated, $colleague] as $record) {
             Livewire::test(EditEmployee::class, ['record' => $record->getRouteKey()])
                 ->assertFormFieldDisabled('role')
+                ->assertFormFieldDisabled('status')
                 ->assertSee(__('employees.helpers.role_locked'))
-                ->assertSee(__('employees.helpers.status'));
+                ->assertSee(__('employees.helpers.status_locked'));
         }
+    }
+
+    #[Test]
+    #[DataProvider('locales')]
+    public function every_administrators_row_offers_an_ordinary_administrator_the_same_actions(string $locale): void
+    {
+        // The point of the rule, asserted as a whole rather than one button
+        // at a time: an ordinary administrator reading this list cannot
+        // tell one administrator's row from another's, because the set of
+        // things offered on them is the same set. A single hidden action
+        // checked in isolation would pass while some other difference went
+        // on announcing which account is which.
+        //
+        // The four rows are deliberately in four different states - the
+        // designated account, an active colleague, a switched-off one and
+        // one still waiting for its invitation - because every one of those
+        // states used to change the menu, and the designated account is
+        // treated as active whatever its row says.
+        App::setLocale($locale);
+
+        $designated = $this->makeAdmin('owner@company.test');
+        config(['admin.super_admin_email' => 'owner@company.test']);
+
+        $active = $this->makeAdmin('active.admin@company.test');
+        $inactive = $this->makeAdmin('inactive.admin@company.test');
+        $inactive->forceFill(['status' => UserStatus::Inactive])->save();
+        $waiting = $this->makeAdmin('waiting.admin@company.test');
+        $waiting->forceFill(['status' => UserStatus::Pending, 'password' => null])->save();
+
+        $expected = $this->rowActions($designated);
+
+        // Not a vacuous comparison: the menu still holds something, so an
+        // empty set on every row could not make this pass.
+        $this->assertTrue($expected['edit'] ?? false, 'Edit is missing from the row menu.');
+
+        foreach ([$active, $inactive, $waiting] as $colleague) {
+            $this->assertSame(
+                $expected,
+                $this->rowActions($colleague),
+                "The designated account's row differs from {$colleague->email}'s.",
+            );
+
+            $this->assertSame(
+                $this->headerActions($designated),
+                $this->headerActions($colleague),
+                "The designated account's edit page differs from {$colleague->email}'s.",
+            );
+        }
+    }
+
+    #[Test]
+    public function an_ordinary_administrator_is_offered_nothing_on_a_colleagues_access(): void
+    {
+        $colleague = $this->makeAdmin('colleague@company.test');
+
+        Livewire::test(ListEmployees::class)
+            ->assertTableActionVisible('edit', $colleague)
+            ->assertTableActionHidden('toggleStatus', $colleague)
+            ->assertTableActionHidden('resetPassword', $colleague)
+            ->assertTableActionHidden('delete', $colleague);
+
+        Livewire::test(EditEmployee::class, ['record' => $colleague->getRouteKey()])
+            ->assertActionHidden('toggleStatus')
+            ->assertActionHidden('resetPassword')
+            ->assertActionHidden('delete')
+            ->assertFormFieldDisabled('status')
+            ->assertSee(__('employees.helpers.status_locked'));
+    }
+
+    #[Test]
+    public function a_status_change_submitted_for_a_colleague_is_ignored(): void
+    {
+        // The disabled select is the browser's courtesy; this is the rule.
+        // A hand-built request must not deactivate an administrator.
+        $colleague = $this->makeAdmin('colleague@company.test');
+
+        Livewire::test(EditEmployee::class, ['record' => $colleague->getRouteKey()])
+            ->fillForm([
+                'name' => 'Renamed Colleague',
+                'status' => UserStatus::Inactive->value,
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $colleague = $colleague->fresh();
+
+        // The rename went through: this rule is about access and not about
+        // the account.
+        $this->assertSame('Renamed Colleague', $colleague->name);
+        $this->assertSame(UserStatus::Active, $colleague->status);
+    }
+
+    #[Test]
+    public function the_super_administrator_deactivates_and_resets_another_administrator(): void
+    {
+        $colleague = $this->makeAdmin('colleague@company.test', password: 'old-password-1');
+        $this->actAsSuperAdmin();
+
+        Livewire::test(ListEmployees::class)
+            ->assertTableActionVisible('toggleStatus', $colleague)
+            ->assertTableActionVisible('resetPassword', $colleague)
+            ->callTableAction('toggleStatus', $colleague)
+            ->assertHasNoTableActionErrors()
+            ->assertNotified(__('employees.notifications.deactivated', ['name' => $colleague->name]));
+
+        $this->assertSame(UserStatus::Inactive, $colleague->fresh()->status);
+
+        Livewire::test(ListEmployees::class)
+            ->callTableAction('resetPassword', $colleague->fresh(), data: [
+                'password' => 'new-password-1',
+                'password_confirmation' => 'new-password-1',
+            ])
+            ->assertHasNoTableActionErrors();
+
+        $this->assertTrue(Hash::check('new-password-1', $colleague->fresh()->password));
+    }
+
+    #[Test]
+    public function a_waiting_administrators_invitation_is_reissued_by_the_super_administrator_alone(): void
+    {
+        // The corner this rule creates, written down: only the super
+        // administrator can make an administrator, so only they can hand
+        // that account its link again if the first one expires.
+        $waiting = $this->makeAdmin('waiting.admin@company.test');
+        $waiting->forceFill(['status' => UserStatus::Pending, 'password' => null])->save();
+
+        Livewire::test(ListEmployees::class)
+            ->assertTableActionHidden('copyInvitationLink', $waiting)
+            ->assertTableActionHidden('resendInvitation', $waiting);
+
+        $this->actAsSuperAdmin();
+
+        Livewire::test(ListEmployees::class)
+            ->assertTableActionVisible('copyInvitationLink', $waiting)
+            ->assertTableActionVisible('resendInvitation', $waiting);
+    }
+
+    #[Test]
+    public function an_employees_row_is_untouched_by_the_rule_about_colleagues(): void
+    {
+        // The whole change is one row wide. Nothing an ordinary
+        // administrator could do to an employee yesterday is gone.
+        $employee = $this->makeEmployee();
+        $waiting = $this->pendingEmployee();
+
+        Livewire::test(ListEmployees::class)
+            ->assertTableActionVisible('edit', $employee)
+            ->assertTableActionVisible('toggleStatus', $employee)
+            ->assertTableActionVisible('resetPassword', $employee)
+            ->assertTableActionVisible('copyInvitationLink', $waiting)
+            ->assertTableActionVisible('resendInvitation', $waiting);
+
+        Livewire::test(EditEmployee::class, ['record' => $employee->getRouteKey()])
+            ->assertFormFieldEnabled('status')
+            ->assertFormFieldEnabled('email')
+            ->assertSee(__('employees.helpers.status'))
+            ->assertActionVisible('toggleStatus')
+            ->assertActionVisible('resetPassword');
+
+        // An employee's address is still any administrator's to correct.
+        Livewire::test(EditEmployee::class, ['record' => $employee->getRouteKey()])
+            ->fillForm(['email' => 'corrected@company.test'])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame('corrected@company.test', $employee->fresh()->email);
+    }
+
+    #[Test]
+    public function an_administrator_cannot_rewrite_a_colleagues_address_or_their_own(): void
+    {
+        // The address is the credential: whoever may rewrite it may hand
+        // the account to somebody else. It locks with the status, on the
+        // same rule and in the same words.
+        $colleague = $this->makeAdmin('colleague@company.test');
+
+        foreach ([$colleague, $this->admin] as $record) {
+            Livewire::test(EditEmployee::class, ['record' => $record->getRouteKey()])
+                ->assertFormFieldDisabled('email')
+                ->assertSee(__('employees.helpers.email_locked'))
+                ->fillForm([
+                    'name' => 'Renamed',
+                    'email' => 'claimed@company.test',
+                ])
+                ->call('save')
+                ->assertHasNoFormErrors();
+
+            $fresh = $record->fresh();
+
+            // The rename lands; the address does not move.
+            $this->assertSame('Renamed', $fresh->name);
+            $this->assertNotSame('claimed@company.test', $fresh->email);
+        }
+    }
+
+    #[Test]
+    public function the_pinned_address_cannot_be_parked_and_claimed(): void
+    {
+        // The whole rule about colleagues, attacked from the one field that
+        // used to be ungated: move the designated address off its row, take
+        // it for your own, and every reserved act is yours. Two saves, no
+        // buttons, and nothing else in this file would have caught it.
+        $designated = $this->makeAdmin('owner@company.test');
+        config(['admin.super_admin_email' => 'owner@company.test']);
+
+        Livewire::test(EditEmployee::class, ['record' => $designated->getRouteKey()])
+            ->fillForm(['email' => 'parked@company.test'])
+            ->call('save');
+
+        $this->assertSame('owner@company.test', $designated->fresh()->email);
+
+        Livewire::test(EditEmployee::class, ['record' => $this->admin->getRouteKey()])
+            ->fillForm(['email' => 'owner@company.test'])
+            ->call('save');
+
+        $this->assertFalse($this->admin->fresh()->isSuperAdmin());
+    }
+
+    #[Test]
+    public function the_super_administrator_still_corrects_an_administrators_address(): void
+    {
+        $colleague = $this->makeAdmin('colleague@company.test');
+        $this->actAsSuperAdmin();
+
+        Livewire::test(EditEmployee::class, ['record' => $colleague->getRouteKey()])
+            ->assertFormFieldEnabled('email')
+            ->fillForm(['email' => 'corrected@company.test'])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame('corrected@company.test', $colleague->fresh()->email);
+    }
+
+    #[Test]
+    public function the_designated_account_keeps_its_own_address_even_from_itself(): void
+    {
+        // Their address is what makes them who they are here, and nobody
+        // edits their own access on this screen - so the one save that
+        // could un-designate the owner by accident is refused too.
+        $owner = $this->actAsSuperAdmin();
+
+        Livewire::test(EditEmployee::class, ['record' => $owner->getRouteKey()])
+            ->assertFormFieldDisabled('email')
+            ->fillForm(['email' => 'somewhere.else@company.test'])
+            ->call('save');
+
+        $this->assertTrue($owner->fresh()->isSuperAdmin());
     }
 
     #[Test]
@@ -811,6 +1059,61 @@ final class EmployeeResourceTest extends TestCase
     public function an_administrator_reaches_the_employee_list_over_http(): void
     {
         $this->get('/admin/employees')->assertOk();
+    }
+
+    /**
+     * Every action the list can put on a row, and whether the signed-in
+     * administrator is offered it on this account.
+     *
+     * The names are read off the table rather than listed here, so an
+     * action added to the resource later joins this comparison instead of
+     * quietly escaping it, and a row whose menu gained an entry would fail
+     * the comparison rather than pass it.
+     *
+     * @return array<string, bool>
+     */
+    private function rowActions(User $record): array
+    {
+        $page = Livewire::test(ListEmployees::class)->instance();
+
+        if (! $page instanceof ListEmployees) {
+            self::fail('Livewire returned something other than the employee list.');
+        }
+
+        $offered = [];
+
+        foreach ($page->getTable()->getFlatRecordActions() as $name => $action) {
+            $offered[$name] = $action->record($record)->isVisible();
+        }
+
+        ksort($offered);
+
+        return $offered;
+    }
+
+    /**
+     * The same question asked of the edit page's header, which carries the
+     * same actions and would be the second place to leak the difference.
+     *
+     * @return array<string, bool>
+     */
+    private function headerActions(User $record): array
+    {
+        $page = Livewire::test(EditEmployee::class, ['record' => $record->getRouteKey()])->instance();
+
+        if (! $page instanceof EditEmployee) {
+            self::fail('Livewire returned something other than the employee edit page.');
+        }
+
+        $offered = [];
+
+        foreach ($page->getCachedHeaderActions() as $action) {
+            $offered[$action->getName()] = $action->isVisible();
+        }
+
+        ksort($offered);
+
+        return $offered;
     }
 
     /**

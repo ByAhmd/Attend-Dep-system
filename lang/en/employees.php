@@ -47,6 +47,8 @@ return [
         'invitation_link' => 'Send this to the employee. It works once, replaces any earlier link, and expires in :minutes minutes.',
         'pending_status' => 'This account becomes active by itself when the employee sets their password.',
         'role_locked' => 'You cannot change an account\'s role.',
+        'status_locked' => 'You cannot change an account\'s status.',
+        'email_locked' => 'You cannot change this account\'s email address.',
         'deleted_account' => 'This account is deleted. Restore it before changing anything on it.',
         'employment_type' => 'A description of the person, not a permission: an intern and an employee record attendance in exactly the same way.',
         'job_title' => 'Maintained on the Job titles screen. Only active titles are offered here.',

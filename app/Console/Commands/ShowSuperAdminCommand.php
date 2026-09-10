@@ -20,9 +20,14 @@ use Illuminate\Console\Command;
  * What this does do is catch the silent misconfiguration. A typo in the
  * address leaves a deployment where every super-administrator power is
  * invisible and nobody is told why: no account matches, so nobody can
- * delete an account or appoint an administrator, and the panel simply never
+ * delete an account, appoint an administrator, or reach another
+ * administrator's status, password or address, and the panel simply never
  * offers those buttons. That is worth an exit code, so a deployment check
  * can fail on it instead of somebody discovering it months later.
+ *
+ * A blank setting is a valid answer and exits zero - a deployment may
+ * genuinely want no super administrator - but it now costs more than it
+ * used to, so the sentence says the whole price rather than half of it.
  *
  * That check is what --check is for. An unattended runner needs the exit
  * code and nothing else, and its output is not a private place.
@@ -45,7 +50,12 @@ final class ShowSuperAdminCommand extends Command
             $this->components->warn('No super administrator is configured.');
             $this->components->bulletList([
                 'SUPER_ADMIN_EMAIL is empty in this environment.',
-                'No account can be deleted, restored, promoted or demoted through the panel.',
+                'No account can be deleted, restored, promoted or demoted.',
+                'No administrator can be deactivated or reactivated.',
+                'No administrator can be given a new password.',
+                'No administrator can have their address corrected.',
+                'One switched off now stays off; one who forgets a password stays out.',
+                'Employees are unaffected - every power over their accounts remains.',
                 'Set SUPER_ADMIN_EMAIL in .env on the server, then run php artisan config:clear.',
             ]);
 
@@ -100,7 +110,7 @@ final class ShowSuperAdminCommand extends Command
     private function verdict(?string $email): int
     {
         if ($email === null) {
-            $this->line('Super administrator: not configured - no account can be deleted, restored, promoted or demoted.');
+            $this->line('Super administrator: not configured - no account can be deleted, restored, promoted or demoted, and no administrator deactivated, reactivated, given a new password or renamed to another address.');
 
             return self::SUCCESS;
         }

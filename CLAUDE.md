@@ -173,7 +173,14 @@ The Filament layer validates input (`LocationReadingValidator`), calls
   the original reading are never rewritten. The row carries the id of the request that
   amended it, so a corrected time is always distinguishable from a location-verified
   one, in the database and on every screen that prints it. An administrator cannot
-  change their own role or status.
+  change their own role or status, nor another administrator's status, password or
+  email address: administrators do not switch each other off, so one lost session
+  cannot take the rest of them down with it. The address is on that list because it
+  is the credential — the super administrator is an address in `.env`, so an
+  administrator free to rewrite addresses could park the pinned one on a spare row
+  and claim it, and every reserved act above would be undone in two saves. A name is
+  still any administrator's to correct, on anybody. Their authority over an
+  employee's account is untouched.
 - A correction request names a date and a wall-clock time, never a timestamp. The
   server combines them in Asia/Riyadh **at approval**, and refuses a moment in the
   future measured at approval time — the row is written when it is approved, so that is
@@ -204,8 +211,12 @@ The Filament layer validates input (`LocationReadingValidator`), calls
   if the account is restored. This is a scope over live state, not a column stamped on
   delete.
 - Nobody decides their own request, administrators included. Approving a correction or a
-  leave request is an ordinary administrator's power; the super administrator's reserved
-  acts stay exactly two. Nothing anywhere in the interface says which account that is.
+  leave request is an ordinary administrator's power; what is reserved is everything that
+  reaches another administrator's account — deleting it, its role, its status, its
+  password, its address. Nothing anywhere in the interface says which account holds
+  that reserve, and
+  because no administrator manages a colleague, no row on the employee list is offered
+  less than the administrator rows beside it.
 - A request arriving notifies **every** administrator except the person who filed it; a
   decision notifies **only** the employee who filed it. "Administrator" is
   `RequestAudience`: not deleted, and either `role = admin` or the address pinned in

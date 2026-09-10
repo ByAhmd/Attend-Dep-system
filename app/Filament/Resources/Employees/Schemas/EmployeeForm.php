@@ -31,13 +31,20 @@ use Filament\Schemas\Schema;
  * an account may do, while these two describe the person, and a description
  * filed beside the permissions would be read as one within a week.
  *
- * Role and status lock themselves whenever the signed-in administrator may
- * not set them, and say so rather than greying out in silence: your own
- * account, one still waiting for its invitation, a deleted one. Each says
- * why in the same words it uses on every other row, and no helper singles
- * out a particular account or explains a lock in terms of who holds which
- * designation. All of them are presentation; the create and edit pages
- * strip the keys again before writing.
+ * Role, status and the email address lock themselves whenever the signed-in
+ * administrator may not set them, and say so rather than greying out in
+ * silence: your own account, another administrator's, one still waiting for
+ * its invitation, a deleted one. Each says why in the same words it uses on
+ * every other row, and no helper singles out a particular account or
+ * explains a lock in terms of who holds which designation. All of them are
+ * presentation; the create and edit pages strip the keys again before
+ * writing.
+ *
+ * The address is on that list because it is the credential, not a
+ * description: it is what the account signs in with, where its invitation
+ * goes, and - since the super administrator is an address in the server's
+ * .env rather than a column - the one field on this form that could hand
+ * one account another's authority.
  */
 final class EmployeeForm
 {
@@ -54,6 +61,12 @@ final class EmployeeForm
                             ->minLength(2)
                             ->maxLength(100),
 
+                        // Printed beside the name, because that is where a
+                        // reader looks for an address - but locked by the
+                        // access rule, because the address is what this
+                        // account signs in with and where its invitation is
+                        // sent. Whoever can rewrite it can hand the account
+                        // to somebody else.
                         TextInput::make('email')
                             ->label(__('employees.fields.email'))
                             ->placeholder(__('employees.placeholders.email'))
@@ -63,7 +76,10 @@ final class EmployeeForm
                             ->unique(ignoreRecord: true)
                             ->validationMessages([
                                 'unique' => __('employees.validation.email_unique'),
-                            ]),
+                            ])
+                            ->disabled(fn (?User $record): bool => $record instanceof User
+                                && ! EmployeeResource::canManageAccess($record))
+                            ->helperText(fn (?User $record): ?string => self::emailHelper($record)),
 
                         Grid::make(['default' => 1, 'sm' => 2])
                             ->schema([
@@ -120,6 +136,28 @@ final class EmployeeForm
     }
 
     /**
+     * Why the address is locked, or nothing at all when it is not.
+     *
+     * There is no sentence on an editable address: the field says what it
+     * is, and a helper under every email box on the screen would be noise.
+     * A locked one has to account for itself, and it does so in the words
+     * every other locked control on this form uses - your own account and a
+     * colleague's read the same line, which is the point.
+     *
+     * Null is the create form, where the address is being chosen and there
+     * is no account whose access it could be.
+     */
+    private static function emailHelper(?User $record): ?string
+    {
+        return match (true) {
+            ! $record instanceof User => null,
+            $record->trashed() => __('employees.helpers.deleted_account'),
+            ! EmployeeResource::canManageAccess($record) => __('employees.helpers.email_locked'),
+            default => null,
+        };
+    }
+
+    /**
      * Why the role select is locked, or what it does when it is not.
      *
      * Every arm here is a sentence any reader could be shown about any row.
@@ -140,6 +178,11 @@ final class EmployeeForm
      * sentence under a locked select is the one every other locked row
      * carries, and a lock this screen declines to explain is a lock nobody
      * can read anything into.
+     *
+     * The last locked arm reads like the role one and for the same reason.
+     * A greyed-out control with a sentence underneath explaining what the
+     * control does is the worst of both: it describes a thing the reader
+     * cannot do and never says so.
      */
     private static function statusHelper(?User $record): string
     {
@@ -147,6 +190,7 @@ final class EmployeeForm
             self::isOwnAccount($record) => __('employees.helpers.own_access'),
             $record instanceof User && $record->trashed() => __('employees.helpers.deleted_account'),
             self::isPending($record) => __('employees.helpers.pending_status'),
+            $record instanceof User && ! EmployeeResource::canManageAccess($record) => __('employees.helpers.status_locked'),
             default => __('employees.helpers.status'),
         };
     }

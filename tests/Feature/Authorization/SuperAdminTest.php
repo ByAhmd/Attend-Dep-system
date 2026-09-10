@@ -9,6 +9,7 @@ use App\Enums\UserStatus;
 use App\Models\User;
 use App\Support\Filament\PanelAccess;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Gate;
@@ -78,6 +79,32 @@ final class SuperAdminTest extends TestCase
         $this->assertNull(User::superAdminEmail());
         $this->assertFalse($admin->isSuperAdmin());
         $this->assertFalse(Gate::forUser($admin)->allows('delete', $this->makeEmployee()));
+    }
+
+    #[Test]
+    public function a_blank_setting_leaves_no_route_to_an_administrators_own_access(): void
+    {
+        // Stated here so it is a fact of the suite and not a surprise on a
+        // Sunday: with no address pinned, every reserved act is unavailable
+        // to everybody, and administrators are the accounts that reserve
+        // affects. Nobody can deactivate one, give one a new password,
+        // demote one or delete one from the interface at all - the remedy
+        // is SUPER_ADMIN_EMAIL on the server, and `app:create-admin` still
+        // makes a working administrator from a terminal.
+        config(['admin.super_admin_email' => '']);
+
+        $admin = $this->makeAdmin('someone@company.test');
+        $colleague = $this->makeAdmin('another@company.test');
+        $employee = $this->makeEmployee('sara@company.test');
+
+        $gate = Gate::forUser($admin);
+
+        $this->assertFalse($gate->allows('manageAccess', $colleague));
+        $this->assertFalse($gate->allows('manageRole', $colleague));
+        $this->assertFalse($gate->allows('delete', $colleague));
+
+        // The employees are untouched by any of it.
+        $this->assertTrue($gate->allows('manageAccess', $employee));
     }
 
     #[Test]
@@ -179,11 +206,62 @@ final class SuperAdminTest extends TestCase
         $this->assertTrue(Gate::forUser($owner)->allows('manageRole', $admin));
         $this->assertFalse(Gate::forUser($admin)->allows('manageRole', $employee));
 
-        // Everything else an ordinary administrator had, they keep.
+        // Every power an ordinary administrator has over an employee, they
+        // keep.
         $this->assertTrue(Gate::forUser($admin)->allows('manageAccess', $employee));
         $this->assertTrue(Gate::forUser($admin)->allows('create', User::class));
         $this->assertTrue(Gate::forUser($admin)->allows('update', $employee));
         $this->assertTrue(Gate::forUser($admin)->allows('viewAny', User::class));
+    }
+
+    #[Test]
+    public function an_ordinary_administrator_cannot_deactivate_or_reset_a_colleague(): void
+    {
+        // The rule stands on its own: one administrator must not be able to
+        // shut another out, whoever the second one happens to be.
+        $this->owner();
+        $admin = $this->makeAdmin('someone@company.test');
+        $colleague = $this->makeAdmin('another@company.test');
+        $employee = $this->makeEmployee('sara@company.test');
+
+        $gate = Gate::forUser($admin);
+
+        $this->assertFalse($gate->allows('manageAccess', $colleague));
+        $this->assertFalse($gate->allows('manageAccess', $admin));
+        $this->assertTrue($gate->allows('manageAccess', $employee));
+
+        // Reading and renaming a colleague are untouched: this rule is
+        // about access, not about the account.
+        $this->assertTrue($gate->allows('view', $colleague));
+        $this->assertTrue($gate->allows('update', $colleague));
+    }
+
+    #[Test]
+    public function the_super_administrator_manages_every_other_administrators_access(): void
+    {
+        $owner = $this->owner();
+        $admin = $this->makeAdmin('someone@company.test');
+        $employee = $this->makeEmployee('sara@company.test');
+
+        $gate = Gate::forUser($owner);
+
+        $this->assertTrue($gate->allows('manageAccess', $admin));
+        $this->assertTrue($gate->allows('manageAccess', $employee));
+        $this->assertFalse($gate->allows('manageAccess', $owner));
+    }
+
+    #[Test]
+    public function the_designated_account_is_reached_by_nobody_whatever_its_role_column_says(): void
+    {
+        // The colleague rule and the pinned rule overlap on an ordinary
+        // administrator's screen, so this proves the second one is still
+        // load bearing: even an actor who may manage administrators - the
+        // super administrator is the only one - is refused this account.
+        $owner = $this->owner(UserRole::Employee);
+        $admin = $this->makeAdmin('someone@company.test');
+
+        $this->assertFalse(Gate::forUser($owner)->allows('manageAccess', $owner));
+        $this->assertFalse(Gate::forUser($admin)->allows('manageAccess', $owner));
     }
 
     #[Test]
@@ -240,6 +318,32 @@ final class SuperAdminTest extends TestCase
         $this->artisan('app:super-admin')
             ->expectsOutputToContain('No super administrator is configured.')
             ->assertSuccessful();
+    }
+
+    #[Test]
+    public function the_command_states_the_whole_cost_of_a_blank_setting(): void
+    {
+        // The one place an operator reads to find out what a blank setting
+        // costs. It used to cost four acts; it now also costs every route
+        // to another administrator's access, and a sentence that stopped at
+        // the old four would send somebody looking for a reset button that
+        // is not there.
+        config(['admin.super_admin_email' => null]);
+
+        $this->assertSame(0, Artisan::call('app:super-admin'));
+
+        $output = Artisan::output();
+
+        foreach ([
+            'deleted, restored, promoted or demoted',
+            'deactivated or reactivated',
+            'given a new password',
+            'address corrected',
+            'stays off',
+            'Employees are unaffected',
+        ] as $phrase) {
+            $this->assertStringContainsString($phrase, $output);
+        }
     }
 
     #[Test]

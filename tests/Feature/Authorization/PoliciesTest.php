@@ -139,13 +139,36 @@ final class PoliciesTest extends TestCase
     #[Test]
     public function an_administrator_cannot_change_their_own_access(): void
     {
-        $otherAdmin = $this->makeAdmin();
-
         $this->assertFalse(Gate::forUser($this->admin)->allows('manageAccess', $this->admin));
         $this->assertTrue(Gate::forUser($this->admin)->allows('manageAccess', $this->employee));
-        $this->assertTrue(Gate::forUser($this->admin)->allows('manageAccess', $otherAdmin));
         $this->assertFalse(Gate::forUser($this->employee)->allows('manageAccess', $this->colleague));
         $this->assertFalse(Gate::forUser($this->employee)->allows('manageAccess', $this->employee));
+    }
+
+    #[Test]
+    public function an_administrator_cannot_change_another_administrators_access_either(): void
+    {
+        // Administrators do not switch each other off: not in a
+        // disagreement, not by pressing the wrong row, and not through a
+        // session somebody else is holding.
+        $otherAdmin = $this->makeAdmin();
+
+        $this->assertFalse(Gate::forUser($this->admin)->allows('manageAccess', $otherAdmin));
+        $this->assertFalse(Gate::forUser($otherAdmin)->allows('manageAccess', $this->admin));
+    }
+
+    #[Test]
+    public function the_super_administrator_still_changes_another_administrators_access(): void
+    {
+        // Somebody has to be able to retire an administrator, and it is the
+        // one account the designation is pinned to.
+        $otherAdmin = $this->makeAdmin();
+
+        config(['admin.super_admin_email' => $this->admin->email]);
+
+        $this->assertTrue(Gate::forUser($this->admin)->allows('manageAccess', $otherAdmin));
+        $this->assertTrue(Gate::forUser($this->admin)->allows('manageAccess', $this->employee));
+        $this->assertFalse(Gate::forUser($this->admin)->allows('manageAccess', $this->admin));
     }
 
     #[Test]

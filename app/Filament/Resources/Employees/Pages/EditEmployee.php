@@ -43,9 +43,15 @@ final class EditEmployee extends EditRecord
      * not touch, but a disabled input is a browser courtesy, not a
      * guarantee. The rules are asked again here, on the data that actually
      * arrived, and they are two separate questions: only the super
-     * administrator appoints or removes an administrator, while status and
-     * password are any administrator's to manage on anybody but themselves
-     * and the super administrator.
+     * administrator appoints or removes an administrator, while the status,
+     * the password and the address are an administrator's to manage over
+     * the employees - never over themselves, and never over a colleague who
+     * administers this system too.
+     *
+     * The address travels with the status because rewriting it hands the
+     * account to whoever holds the new one. Left open, two saves through
+     * this form would move the pinned address off one row and onto another,
+     * and the rule above would be a rule about buttons only.
      *
      * A pending account's status is dropped for a third reason: it is not
      * an editable field. Saving it as active would produce an account that
@@ -69,7 +75,7 @@ final class EditEmployee extends EditRecord
         }
 
         if (! EmployeeResource::canManageAccess($record)) {
-            unset($data['status']);
+            unset($data['status'], $data['email']);
         }
 
         if ($record instanceof User && $record->status->isPending()) {

@@ -198,8 +198,10 @@ final class User extends Authenticatable implements FilamentUser
     }
 
     /**
-     * The one account that may delete accounts and appoint or remove other
-     * administrators, and that nobody may deactivate, demote or delete.
+     * The one account that may delete accounts, appoint or remove other
+     * administrators and manage an administrator's access - status,
+     * password, sign-in address - and that nobody may deactivate, demote or
+     * delete.
      *
      * It is whoever holds the address in SUPER_ADMIN_EMAIL, read through
      * config so `config:cache` keeps working. Not a column, not a third

@@ -28,7 +28,9 @@ use Illuminate\Database\Eloquent\Model;
  * Deleting means hide and keep the records: the account leaves this list and
  * can never sign in again, its attendance history stays and still carries
  * the person's name, and it can be restored. Only the super administrator
- * is offered it, and only the super administrator may change a role.
+ * is offered it, only the super administrator may change a role, and only
+ * the super administrator may touch another administrator's access at all.
+ * An ordinary administrator's reach on this screen is the employees.
  */
 final class EmployeeResource extends Resource
 {
@@ -104,13 +106,13 @@ final class EmployeeResource extends Resource
 
     /**
      * Whether the signed-in administrator may change whether this account
-     * can get in - its status, its password.
+     * can get in - its status, its password, the address it signs in with.
      *
      * Asked by the form, the actions and the edit page alike, so the answer
      * comes from the policy in exactly one place: an administrator never
-     * changes their own access, nobody touches the super administrator's,
-     * and a screen that forgot to ask would let a deployment lock out its
-     * last administrator.
+     * changes their own access and never another administrator's, and a
+     * screen that forgot to ask would let one administrator lock the rest
+     * of them out.
      *
      * A deleted account is excluded here rather than in each action: it has
      * no access to manage until it is restored, so inviting it, resetting
