@@ -59,6 +59,14 @@ final class AttendanceStatsWidget extends StatsOverviewWidget
     protected static bool $isLazy = false;
 
     /**
+     * And never asked for again. See RequestsQueueWidget for the arithmetic:
+     * Filament's default re-fetches a stats widget every five seconds, and
+     * "who is inside right now" is a figure an administrator reads when they
+     * open the page, not one they sit and watch.
+     */
+    protected ?string $pollingInterval = null;
+
+    /**
      * @return array<int, Stat>
      */
     protected function getStats(): array

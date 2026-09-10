@@ -7,6 +7,8 @@ namespace App\Services\Attendance;
 use App\Data\Attendance\CorrectionDraft;
 use App\Enums\CorrectionRefusalReason;
 use App\Enums\RequestStatus;
+use App\Events\RequestDecided;
+use App\Events\RequestSubmitted;
 use App\Exceptions\Attendance\AttendanceCorrectionRefusedException;
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
@@ -57,6 +59,13 @@ use InvalidArgumentException;
  * about the employee's claim, and writing a rejection into a permanent
  * record because of a database conflict would put a false judgement of a
  * person into the audit.
+ *
+ * Each of the three methods announces itself with an event once its write
+ * has committed, and never from inside the transaction. That placement is
+ * the whole of the guarantee: a decision that rolled back is announced to
+ * nobody, and a listener that throws cannot reach back into an amendment
+ * that is already on the disk. This service does not know who is told, and
+ * must not: see app/Listeners.
  */
 final readonly class AttendanceCorrectionWorkflow
 {
@@ -128,7 +137,7 @@ final readonly class AttendanceCorrectionWorkflow
             // submitted_at and the three decision columns are outside
             // #[Fillable] precisely so a payload can never file a request
             // under somebody else's name or arrive pre-approved.
-            return AttendanceCorrection::query()->forceCreate([
+            $request = AttendanceCorrection::query()->forceCreate([
                 'user_id' => $employee->id,
                 'attendance_id' => $draft->attendanceId,
                 'attendance_date' => $draft->date->toDateString(),
@@ -145,6 +154,13 @@ final readonly class AttendanceCorrectionWorkflow
             // together.
             throw new AttendanceCorrectionRefusedException(CorrectionRefusalReason::RequestAlreadyPending);
         }
+
+        // Said after the row exists and never before. Every listener is a
+        // consequence of a request having been filed, and a request that was
+        // refused was not filed.
+        RequestSubmitted::dispatch($request);
+
+        return $request;
     }
 
     /**
@@ -155,7 +171,7 @@ final readonly class AttendanceCorrectionWorkflow
     public function approve(AttendanceCorrection $correction, User $decidedBy, ?string $note = null): Attendance
     {
         try {
-            return DB::transaction(fn (): Attendance => $this->apply($correction, $decidedBy, $note));
+            $amended = DB::transaction(fn (): Attendance => $this->apply($correction, $decidedBy, $note));
         } catch (QueryException $exception) {
             // Reaching this means a service rule and a CHECK constraint
             // disagree - a defect to find, not a condition to handle - so it
@@ -168,6 +184,18 @@ final readonly class AttendanceCorrectionWorkflow
 
             throw new AttendanceCorrectionRefusedException(CorrectionRefusalReason::CouldNotBeApplied);
         }
+
+        // Outside the transaction, so nothing a listener does can undo an
+        // amendment that has already committed - and so a refusal, which
+        // rolls the whole day back and leaves the request pending, announces
+        // nothing at all.
+        //
+        // Refreshed rather than trusted: apply() decides on a second instance
+        // read under the lock, and this one still holds the request as it was
+        // before anybody answered it.
+        RequestDecided::dispatch($correction->refresh());
+
+        return $amended;
     }
 
     /**
@@ -184,7 +212,7 @@ final readonly class AttendanceCorrectionWorkflow
         }
 
         try {
-            return DB::transaction(function () use ($correction, $decidedBy, $note): AttendanceCorrection {
+            $rejected = DB::transaction(function () use ($correction, $decidedBy, $note): AttendanceCorrection {
                 $request = $this->lockedRequest($correction);
 
                 $request->forceFill([
@@ -204,6 +232,12 @@ final readonly class AttendanceCorrectionWorkflow
 
             throw new AttendanceCorrectionRefusedException(CorrectionRefusalReason::CouldNotBeApplied);
         }
+
+        // The instance the transaction returns is the one it decided on, so
+        // unlike the approval there is nothing to read back.
+        RequestDecided::dispatch($rejected);
+
+        return $rejected;
     }
 
     /**
