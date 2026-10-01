@@ -73,6 +73,17 @@ return [
         'already_checked_out' => 'You have already checked out. Check in again when you are back.',
         'insufficient_accuracy' => 'Your location accuracy (±:accuracy m) is not good enough. Enable precise location/GPS and try again.',
         'outside_allowed_area' => 'You are outside the allowed attendance area. You must be within :radius meters of the company (you are :distance meters away).',
+        'early_check_out_reason_required' => 'The working day has not ended yet. Choose a reason for the early check-out and try again.',
+    ],
+
+    // The modal between an early Check Out tap and the location fix.
+    'early' => [
+        'modal_heading' => 'Early check-out',
+        'modal_description' => 'The working day ends at :time. Choose why you are leaving early; the reason is stored with today\'s record.',
+        'reason' => 'Reason',
+        'reason_required' => 'Choose a reason for leaving early.',
+        'note' => 'Note (optional)',
+        'submit' => 'Continue to check-out',
     ],
 
     'validation' => [
@@ -107,12 +118,16 @@ return [
         'original_check_out_at' => 'Check-out as the device recorded it',
         'correction_reason' => 'Reason for the correction',
         'corrected_by' => 'Approved by',
+        'early_check_out_reason' => 'Early check-out reason',
+        'early_check_out_note' => 'Early check-out note',
     ],
 
     'badges' => [
         'corrected' => 'Corrected',
         'recorded_manually' => 'Recorded by hand',
         'corrected_from' => 'The device recorded :time',
+        'late_by' => 'Late by :duration',
+        'left_early' => 'Left early — :reason',
     ],
 
     'sections' => [

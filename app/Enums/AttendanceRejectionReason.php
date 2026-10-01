@@ -23,6 +23,7 @@ enum AttendanceRejectionReason: string
     case AlreadyCheckedOut = 'already_checked_out';
     case InsufficientAccuracy = 'insufficient_accuracy';
     case OutsideAllowedArea = 'outside_allowed_area';
+    case EarlyCheckOutReasonRequired = 'early_check_out_reason_required';
 
     public function label(): string
     {

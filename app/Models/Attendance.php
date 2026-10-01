@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Models;
 
 use App\Enums\AttendanceStatus;
+use App\Enums\EarlyCheckOutReason;
 use App\Services\Attendance\AttendanceCalendar;
 use App\Support\Geo\Coordinates;
 use Carbon\CarbonImmutable;
@@ -66,6 +67,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property ?string $check_out_longitude
  * @property ?string $check_out_accuracy
  * @property ?string $check_out_distance_from_company
+ * @property ?EarlyCheckOutReason $early_check_out_reason
+ * @property ?string $early_check_out_note
  * @property ?CarbonImmutable $original_check_in_at
  * @property ?CarbonImmutable $original_check_out_at
  * @property ?int $check_in_correction_id
@@ -78,6 +81,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'user_id', 'attendance_date',
     'check_in_at', 'check_in_latitude', 'check_in_longitude', 'check_in_accuracy', 'check_in_distance_from_company',
     'check_out_at', 'check_out_latitude', 'check_out_longitude', 'check_out_accuracy', 'check_out_distance_from_company',
+    'early_check_out_reason', 'early_check_out_note',
 ])]
 final class Attendance extends Model
 {
@@ -101,6 +105,7 @@ final class Attendance extends Model
             'check_out_longitude' => 'decimal:7',
             'check_out_accuracy' => 'decimal:2',
             'check_out_distance_from_company' => 'decimal:2',
+            'early_check_out_reason' => EarlyCheckOutReason::class,
             'original_check_in_at' => 'immutable_datetime',
             'original_check_out_at' => 'immutable_datetime',
         ];
@@ -196,6 +201,19 @@ final class Attendance extends Model
     public function isCorrected(): bool
     {
         return $this->isCheckInCorrected() || $this->isCheckOutCorrected();
+    }
+
+    /**
+     * Whether this session was closed before the end of the working day.
+     *
+     * Read off the stored reason rather than recomputed from the settings:
+     * the verdict was made against the working day in force at the moment
+     * of the check-out, and an owner later moving the end of the day must
+     * not silently rewrite which departures were early.
+     */
+    public function leftEarly(): bool
+    {
+        return $this->early_check_out_reason instanceof EarlyCheckOutReason;
     }
 
     public function hasDeviceCheckIn(): bool

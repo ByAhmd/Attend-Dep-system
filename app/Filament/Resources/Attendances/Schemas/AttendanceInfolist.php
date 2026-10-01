@@ -153,6 +153,23 @@ final class AttendanceInfolist
                                 ? __('attendance.helpers.distance_describes_device_reading')
                                 : null),
 
+                        // Present only on a departure that was early: on an
+                        // ordinary check-out there is nothing to explain,
+                        // and a permanent pair of dashes would suggest a
+                        // reason was expected of everyone.
+                        TextEntry::make('early_check_out_reason')
+                            ->label(__('attendance.fields.early_check_out_reason'))
+                            ->hidden(fn (Attendance $record): bool => ! $record->leftEarly())
+                            ->formatStateUsing(fn (Attendance $record): ?string => $record->early_check_out_reason?->label()),
+
+                        // The employee's own words, kept apart from the
+                        // reason they qualify and absent when none were
+                        // typed - the note is optional and its absence is
+                        // not a gap.
+                        TextEntry::make('early_check_out_note')
+                            ->label(__('attendance.fields.early_check_out_note'))
+                            ->hidden(fn (Attendance $record): bool => $record->early_check_out_note === null),
+
                         Actions::make([
                             self::openMap('openCheckOutMap', fn (Attendance $record): ?Coordinates => $record->checkOutCoordinates()),
                         ])

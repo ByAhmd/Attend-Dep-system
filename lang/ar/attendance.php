@@ -72,6 +72,17 @@ return [
         'already_checked_out' => 'لقد سجّلت انصرافك بالفعل. سجّل الحضور مرة أخرى عند عودتك.',
         'insufficient_accuracy' => 'دقة موقعك (±:accuracy م) غير كافية. فعّل الموقع الدقيق/GPS وحاول مرة أخرى.',
         'outside_allowed_area' => 'أنت خارج نطاق الحضور المسموح. يجب أن تكون ضمن :radius مترًا من الشركة (أنت على بعد :distance مترًا).',
+        'early_check_out_reason_required' => 'لم ينتهِ الدوام بعد. اختر سبب الانصراف المبكّر ثم حاول مرة أخرى.',
+    ],
+
+    // النافذة بين ضغطة انصراف مبكّرة وتحديد الموقع.
+    'early' => [
+        'modal_heading' => 'انصراف مبكّر',
+        'modal_description' => 'ينتهي الدوام الساعة :time. اختر سبب انصرافك المبكّر؛ يُحفظ السبب مع سجل اليوم.',
+        'reason' => 'السبب',
+        'reason_required' => 'اختر سبب الانصراف المبكّر.',
+        'note' => 'ملاحظة (اختياري)',
+        'submit' => 'متابعة تسجيل الانصراف',
     ],
 
     'validation' => [
@@ -106,12 +117,16 @@ return [
         'original_check_out_at' => 'ما سجّله الجهاز للانصراف',
         'correction_reason' => 'سبب التصحيح',
         'corrected_by' => 'اعتمده',
+        'early_check_out_reason' => 'سبب الانصراف المبكّر',
+        'early_check_out_note' => 'ملاحظة الانصراف المبكّر',
     ],
 
     'badges' => [
         'corrected' => 'مصحَّح',
         'recorded_manually' => 'مسجَّل يدويًا',
         'corrected_from' => 'الجهاز سجّل :time',
+        'late_by' => 'متأخر :duration',
+        'left_early' => 'انصراف مبكّر — :reason',
     ],
 
     'sections' => [

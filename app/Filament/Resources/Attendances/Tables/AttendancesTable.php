@@ -6,9 +6,11 @@ namespace App\Filament\Resources\Attendances\Tables;
 
 use App\Enums\AttendanceStatus;
 use App\Models\Attendance;
+use App\Models\AttendanceSetting;
 use App\Models\User;
 use App\Services\Attendance\AttendanceCalendar;
 use App\Support\Attendance\SessionDuration;
+use App\Support\Attendance\WorkingHours;
 use App\Support\Geo\Meters;
 use BackedEnum;
 use Carbon\CarbonImmutable;
@@ -73,8 +75,29 @@ final class AttendancesTable
 
     public static function configure(Table $table): Table
     {
+        // Read once per render and shared by every row's closures: lateness
+        // is derived against the working day currently in force, the way
+        // the session status is derived against today's date.
+        $workingHours = AttendanceSetting::current()->workingHours();
+
         return $table
-            ->modifyQueryUsing(fn (Builder $query): Builder => $query->with('user'))
+            // Each row also learns when its employee-day BEGAN, because a
+            // late arrival is a verdict on the day's first check-in and on
+            // nothing after it: someone back from lunch at 13:00 did not
+            // arrive late twice. One correlated subquery on the index this
+            // table already carries, instead of a query per row.
+            ->modifyQueryUsing(fn (Builder $query): Builder => $query
+                ->with('user')
+                ->addSelect([
+                    'day_first_check_in_at' => Attendance::query()
+                        ->from('attendances', 'day_first')
+                        ->select('day_first.check_in_at')
+                        ->whereColumn('day_first.user_id', 'attendances.user_id')
+                        ->whereColumn('day_first.attendance_date', 'attendances.attendance_date')
+                        ->orderBy('day_first.check_in_at')
+                        ->orderBy('day_first.id')
+                        ->limit(1),
+                ]))
             ->columns([
                 // The one column allowed to take the leftover width: a name
                 // may be long, and everything beside it is a fixed quantity.
@@ -117,11 +140,15 @@ final class AttendancesTable
                         $record->isCheckInCorrected(),
                         $record->hasDeviceCheckIn(),
                     ), position: 'above')
+                    // One line under the time: on a corrected moment, what
+                    // the device recorded - the audit outranks the verdict -
+                    // and otherwise how late the day started, when this row
+                    // is the one that started it.
                     ->description(fn (Attendance $record): ?string => self::deviceMoment(
                         $record->isCheckInCorrected(),
                         $record->hasDeviceCheckIn(),
                         $record->deviceCheckInAt(),
-                    )),
+                    ) ?? self::lateWord($record, $workingHours)),
 
                 TextColumn::make('check_out_at')
                     ->label(__('attendance.fields.check_out_at'))
@@ -138,11 +165,16 @@ final class AttendancesTable
                         $record->isCheckOutCorrected(),
                         $record->hasDeviceCheckOut(),
                     ), position: 'above')
+                    // Same slot, same precedence as the check-in: the
+                    // device's moment on a corrected row, otherwise the
+                    // reason the employee gave for leaving before the end
+                    // of the working day. The note behind it is on the
+                    // View modal.
                     ->description(fn (Attendance $record): ?string => self::deviceMoment(
                         $record->isCheckOutCorrected(),
                         $record->hasDeviceCheckOut(),
                         $record->deviceCheckOutAt(),
-                    )),
+                    ) ?? self::earlyWord($record)),
 
                 // How long the session lasted, computed from the two stored
                 // moments rather than kept in a column that could disagree
@@ -391,5 +423,44 @@ final class AttendancesTable
     private static function meters(string $meters): string
     {
         return __('attendance.units.meters', ['value' => Meters::format($meters)]);
+    }
+
+    /**
+     * How late the day began, under the check-in that began it - and only
+     * that one. The verdict belongs to the employee-day, so it is printed
+     * on the day's first session and never on a return from lunch, and the
+     * figure is measured from the start of the working day, as the
+     * dashboard's list explains out loud.
+     */
+    private static function lateWord(Attendance $record, WorkingHours $workingHours): ?string
+    {
+        $dayFirst = $record->getAttribute('day_first_check_in_at');
+
+        if (! is_string($dayFirst) || $record->check_in_at->format('Y-m-d H:i:s') !== $dayFirst) {
+            return null;
+        }
+
+        if (! $workingHours->isLateArrival($record->check_in_at)) {
+            return null;
+        }
+
+        return __('attendance.badges.late_by', [
+            'duration' => SessionDuration::format($workingHours->latenessSeconds($record->check_in_at)),
+        ]);
+    }
+
+    /**
+     * The reason the employee chose when they closed this session before
+     * the end of the working day. Stored at the moment of the check-out,
+     * so a later change to the working day never rewrites which departures
+     * were early.
+     */
+    private static function earlyWord(Attendance $record): ?string
+    {
+        $reason = $record->early_check_out_reason;
+
+        return $reason === null
+            ? null
+            : __('attendance.badges.left_early', ['reason' => $reason->label()]);
     }
 }

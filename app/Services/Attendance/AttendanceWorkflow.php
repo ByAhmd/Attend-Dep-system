@@ -4,12 +4,14 @@ declare(strict_types=1);
 
 namespace App\Services\Attendance;
 
+use App\Data\Attendance\EarlyCheckOutDraft;
 use App\Data\Attendance\LocationVerification;
 use App\Enums\AttendanceAction;
 use App\Enums\AttendanceRejectionReason;
 use App\Exceptions\Attendance\AttendanceRejectedException;
 use App\Models\Attendance;
 use App\Models\AttendanceRejection;
+use App\Models\AttendanceSetting;
 use App\Models\User;
 use App\Support\Geo\LocationReading;
 use Carbon\CarbonInterface;
@@ -34,6 +36,13 @@ use Illuminate\Support\Facades\DB;
  * location test; yesterday's open session still cannot be closed today,
  * because a check-out time invented for a day that has ended is invented
  * attendance.
+ *
+ * A check-out before the end of the official working day is accepted only
+ * together with a reason the employee chose, and the reason is stored on
+ * the session it closed. The measurement is the server's - the moment of
+ * the check-out against the working day in the settings - and it is made
+ * before the location is verified, because it is a state rule like the
+ * open-session rules above it, not a fact about where the device stood.
  *
  * Two taps arriving together cannot both succeed: a double check-in is
  * settled by the unique index on (user_id, open_attendance_date), a double
@@ -82,9 +91,9 @@ final readonly class AttendanceWorkflow
     /**
      * @throws AttendanceRejectedException
      */
-    public function checkOut(User $user, LocationReading $reading): Attendance
+    public function checkOut(User $user, LocationReading $reading, ?EarlyCheckOutDraft $earlyCheckOut = null): Attendance
     {
-        return $this->attempt(AttendanceAction::CheckOut, $user, $reading, function () use ($user, $reading): Attendance {
+        return $this->attempt(AttendanceAction::CheckOut, $user, $reading, function () use ($user, $reading, $earlyCheckOut): Attendance {
             $now = $this->calendar->now();
             $today = $now->startOfDay();
             $session = $this->lockedOpenSessionOn($user, $today);
@@ -101,6 +110,15 @@ final readonly class AttendanceWorkflow
                 );
             }
 
+            // Strictly before the end: a check-out at 17:00:00 sharp is an
+            // ordinary one. The page asks for the reason up front, so this
+            // refusal is the backstop for a payload that skipped the form.
+            $isEarly = $now->lessThan(AttendanceSetting::current()->workingHours()->endOn($today));
+
+            if ($isEarly && ! $earlyCheckOut instanceof EarlyCheckOutDraft) {
+                throw new AttendanceRejectedException(AttendanceRejectionReason::EarlyCheckOutReasonRequired);
+            }
+
             $verification = $this->verifiedLocation($reading);
 
             $session->forceFill([
@@ -109,6 +127,10 @@ final readonly class AttendanceWorkflow
                 'check_out_longitude' => $reading->coordinates->longitude,
                 'check_out_accuracy' => round($reading->accuracyMeters, 2),
                 'check_out_distance_from_company' => $verification->roundedDistance(),
+                // A reason handed to an on-time check-out is dropped, not
+                // stored: it would explain a departure that needs none.
+                'early_check_out_reason' => $isEarly ? $earlyCheckOut->reason : null,
+                'early_check_out_note' => $isEarly ? $earlyCheckOut->note : null,
             ])->save();
 
             return $session;

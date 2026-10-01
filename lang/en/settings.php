@@ -12,6 +12,7 @@ return [
     'sections' => [
         'location' => 'Company location',
         'radius' => 'Allowed radius',
+        'working_hours' => 'Official working hours',
         'corrections' => 'Correction requests',
     ],
 
@@ -21,6 +22,10 @@ return [
         'radius_meters' => 'Allowed radius (meters)',
         'radius_suffix' => 'm',
         'correction_requests_per_month' => 'Correction requests per month',
+        'work_starts_at' => 'Working day starts',
+        'work_ends_at' => 'Working day ends',
+        'late_grace_minutes' => 'Late grace period',
+        'late_grace_suffix' => 'minutes',
     ],
 
     /*
@@ -39,6 +44,8 @@ return [
         'not_configured' => 'Attendance cannot be recorded until the company location is set.',
         'preview' => 'Open the configured location in a map',
         'correction_requests_per_month' => 'The most requests one employee may send in a Gregorian month. A request counts whether it is approved or rejected. Zero switches correction requests off entirely.',
+        'working_hours' => 'A check-in more than the grace period after the start is marked late, and a check-out before the end asks the employee to choose a reason.',
+        'late_grace_minutes' => 'Minutes after the start of the working day during which an arrival is not yet marked late. Zero means any arrival after the start is late.',
     ],
 
     'validation' => [
@@ -49,6 +56,9 @@ return [
         'correction_quota_min' => 'The lowest value is zero, which switches correction requests off.',
         'correction_quota_max' => 'The highest value is :max, one for every day of the month.',
         'correction_quota_integer' => 'Give a whole number.',
+        'work_time' => 'Give a valid time.',
+        'working_day_ordered' => 'The working day must end after it starts.',
+        'late_grace' => 'The grace period must be a whole number between :min and :max minutes.',
     ],
 
     'notifications' => [

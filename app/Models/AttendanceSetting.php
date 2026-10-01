@@ -4,27 +4,35 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Support\Attendance\WorkingHours;
 use App\Support\Geo\Coordinates;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\UniqueConstraintViolationException;
 
 /**
- * The company's attendance configuration: where the company is and how far
- * from it attendance may be recorded.
+ * The company's attendance configuration: where the company is, how far
+ * from it attendance may be recorded, and what the official working day is.
  *
- * A single row, created on first use and edited from the admin panel. Three
- * values did not justify a settings package; a table row keeps them in the
- * database with the rest of the data, editable through an ordinary Filament
- * form, and a CHECK constraint on the id keeps it single.
+ * A single row, created on first use and edited from the admin panel. A
+ * handful of values did not justify a settings package; a table row keeps
+ * them in the database with the rest of the data, editable through an
+ * ordinary Filament form, and a CHECK constraint on the id keeps it single.
+ *
+ * The two working-day times are TIME columns and read as wall-clock
+ * strings, never as moments: which moment "09:00" is depends on the day
+ * being asked about, and workingHours() is where that question is put.
  *
  * @property int $id
  * @property ?string $latitude
  * @property ?string $longitude
  * @property int $radius_meters
  * @property int $correction_requests_per_month
+ * @property string $work_starts_at
+ * @property string $work_ends_at
+ * @property int $late_grace_minutes
  */
-#[Fillable(['latitude', 'longitude', 'radius_meters', 'correction_requests_per_month'])]
+#[Fillable(['latitude', 'longitude', 'radius_meters', 'correction_requests_per_month', 'work_starts_at', 'work_ends_at', 'late_grace_minutes'])]
 final class AttendanceSetting extends Model
 {
     public const int SINGLETON_ID = 1;
@@ -44,6 +52,7 @@ final class AttendanceSetting extends Model
             'longitude' => 'decimal:7',
             'radius_meters' => 'integer',
             'correction_requests_per_month' => 'integer',
+            'late_grace_minutes' => 'integer',
         ];
     }
 
@@ -65,6 +74,9 @@ final class AttendanceSetting extends Model
                 'id' => self::SINGLETON_ID,
                 'radius_meters' => (int) config('attendance.default_radius_meters'),
                 'correction_requests_per_month' => (int) config('attendance.default_correction_requests_per_month'),
+                'work_starts_at' => (string) config('attendance.default_work_starts_at'),
+                'work_ends_at' => (string) config('attendance.default_work_ends_at'),
+                'late_grace_minutes' => (int) config('attendance.default_late_grace_minutes'),
             ]);
         } catch (UniqueConstraintViolationException) {
             return self::query()->findOrFail(self::SINGLETON_ID);
@@ -83,5 +95,20 @@ final class AttendanceSetting extends Model
         }
 
         return new Coordinates((float) $this->latitude, (float) $this->longitude);
+    }
+
+    /**
+     * The official working day these settings describe. Unlike the
+     * coordinates it always exists - the columns carry the brief's
+     * 09:00–17:00 as their defaults - so no caller has to invent a working
+     * day of its own when the row is fresh.
+     */
+    public function workingHours(): WorkingHours
+    {
+        return new WorkingHours(
+            $this->work_starts_at,
+            $this->work_ends_at,
+            $this->late_grace_minutes,
+        );
     }
 }

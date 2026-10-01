@@ -262,6 +262,93 @@ final class AttendanceSettingsTest extends TestCase
     }
 
     #[Test]
+    public function the_working_day_is_on_the_form_with_the_briefs_defaults(): void
+    {
+        // The pickers hide seconds, so their state is the five-character
+        // wall-clock time whatever the TIME column returned.
+        Livewire::test(EditAttendanceSetting::class)
+            ->assertSchemaStateSet([
+                'work_starts_at' => '09:00',
+                'work_ends_at' => '17:00',
+                'late_grace_minutes' => (int) config('attendance.default_late_grace_minutes'),
+            ])
+            ->assertSee(__('settings.sections.working_hours'))
+            // The sentence that says what the three values DO - marked
+            // late after the grace, a reason asked before the end - on the
+            // screen that can change them.
+            ->assertSee(__('settings.helpers.working_hours'));
+    }
+
+    #[Test]
+    public function the_working_day_can_be_changed_and_the_workflow_reads_the_change(): void
+    {
+        $this->configureCompanyLocation();
+        $this->freezeRiyadhClock('2026-09-02 15:30:00');
+
+        Livewire::test(EditAttendanceSetting::class)
+            ->fillForm([
+                'work_starts_at' => '08:00',
+                'work_ends_at' => '15:00',
+                'late_grace_minutes' => 10,
+            ])
+            ->call('save')
+            ->assertHasNoFormErrors()
+            ->assertNotified(__('settings.notifications.saved'));
+
+        $workingHours = AttendanceSetting::current()->workingHours();
+
+        $this->assertSame(10, $workingHours->lateGraceMinutes);
+
+        // 15:30 was an early check-out against the 17:00 day; against the
+        // day just saved it is an ordinary one, and the workflow accepts
+        // it without a reason.
+        $employee = $this->makeEmployee();
+        $this->checkedIn($employee);
+
+        $attendance = app(AttendanceWorkflow::class)->checkOut($employee, $this->readingAtCompany());
+
+        $this->assertFalse($attendance->isOpen());
+        $this->assertNull($attendance->early_check_out_reason);
+    }
+
+    #[Test]
+    public function a_day_that_ends_before_it_starts_is_refused_in_the_settings_words(): void
+    {
+        Livewire::test(EditAttendanceSetting::class)
+            ->fillForm([
+                'work_starts_at' => '17:00',
+                'work_ends_at' => '09:00',
+            ])
+            ->call('save')
+            ->assertHasFormErrors(['work_ends_at' => 'after'])
+            ->assertSee(__('settings.validation.working_day_ordered'));
+
+        $this->assertSame('09:00:00', AttendanceSetting::current()->work_starts_at);
+    }
+
+    #[Test]
+    public function a_grace_outside_the_bounds_is_refused(): void
+    {
+        $bounds = config('attendance.late_grace_bounds');
+
+        Livewire::test(EditAttendanceSetting::class)
+            ->fillForm(['late_grace_minutes' => $bounds['max'] + 1])
+            ->call('save')
+            ->assertHasFormErrors(['late_grace_minutes' => 'max'])
+            ->assertSee(__('settings.validation.late_grace', ['min' => $bounds['min'], 'max' => $bounds['max']]));
+
+        Livewire::test(EditAttendanceSetting::class)
+            ->fillForm(['late_grace_minutes' => -1])
+            ->call('save')
+            ->assertHasFormErrors(['late_grace_minutes' => 'min']);
+
+        $this->assertSame(
+            (int) config('attendance.default_late_grace_minutes'),
+            AttendanceSetting::current()->late_grace_minutes,
+        );
+    }
+
+    #[Test]
     public function an_employee_is_refused_the_settings_over_http(): void
     {
         $employee = $this->makeEmployee();

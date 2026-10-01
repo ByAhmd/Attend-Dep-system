@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Attendance;
 
+use App\Data\Attendance\EarlyCheckOutDraft;
 use App\Enums\AttendanceAction;
 use App\Enums\AttendanceRejectionReason;
 use App\Enums\AttendanceStatus;
+use App\Enums\EarlyCheckOutReason;
 use App\Enums\UserStatus;
 use App\Exceptions\Attendance\AttendanceRejectedException;
 use App\Models\Attendance;
@@ -278,6 +280,130 @@ final class CheckOutTest extends TestCase
         $attendance = $this->workflow->checkOut($this->employee, $this->readingMetersFromCompany(250.0));
 
         $this->assertSame('250.00', $attendance->check_out_distance_from_company);
+    }
+
+    #[Test]
+    public function a_check_out_before_the_end_of_the_working_day_needs_a_reason(): void
+    {
+        $open = $this->checkedIn($this->employee);
+        $this->freezeRiyadhClock('2026-09-02 12:00:00');
+
+        $rejection = $this->expectRejection(
+            fn (): Attendance => $this->workflow->checkOut($this->employee, $this->readingAtCompany()),
+        );
+
+        $this->assertSame(AttendanceRejectionReason::EarlyCheckOutReasonRequired, $rejection->reason);
+        $this->assertTrue($open->fresh()?->isOpen());
+        // A state rule, not a location failure: nothing for the audit.
+        $this->assertDatabaseCount('attendance_rejections', 0);
+    }
+
+    #[Test]
+    public function a_check_out_before_the_end_with_a_reason_closes_the_record_and_keeps_it(): void
+    {
+        $this->checkedIn($this->employee);
+        $now = $this->freezeRiyadhClock('2026-09-02 12:00:00');
+
+        $attendance = $this->workflow->checkOut(
+            $this->employee,
+            $this->readingMetersFromCompany(40.0),
+            new EarlyCheckOutDraft(EarlyCheckOutReason::Sick, 'موعد طبي'),
+        );
+
+        $stored = $attendance->fresh();
+
+        $this->assertInstanceOf(Attendance::class, $stored);
+        $this->assertSame($now->toDateTimeString(), $stored->check_out_at?->toDateTimeString());
+        $this->assertSame(EarlyCheckOutReason::Sick, $stored->early_check_out_reason);
+        $this->assertSame('موعد طبي', $stored->early_check_out_note);
+        $this->assertSame('40.00', $stored->check_out_distance_from_company);
+    }
+
+    #[Test]
+    public function the_end_of_the_working_day_exactly_needs_no_reason(): void
+    {
+        // "Before the end" is strict: 17:00:00 sharp is an ordinary
+        // check-out, 16:59:59 is not.
+        $this->checkedIn($this->employee);
+        $this->freezeRiyadhClock('2026-09-02 17:00:00');
+
+        $attendance = $this->workflow->checkOut($this->employee, $this->readingAtCompany());
+
+        $this->assertFalse($attendance->isOpen());
+        $this->assertNull($attendance->early_check_out_reason);
+    }
+
+    #[Test]
+    public function one_second_before_the_end_is_still_early(): void
+    {
+        $this->checkedIn($this->employee);
+        $this->freezeRiyadhClock('2026-09-02 16:59:59');
+
+        $rejection = $this->expectRejection(
+            fn (): Attendance => $this->workflow->checkOut($this->employee, $this->readingAtCompany()),
+        );
+
+        $this->assertSame(AttendanceRejectionReason::EarlyCheckOutReasonRequired, $rejection->reason);
+    }
+
+    #[Test]
+    public function a_reason_handed_to_an_on_time_check_out_is_dropped(): void
+    {
+        $this->checkedIn($this->employee);
+        $this->freezeRiyadhClock('2026-09-02 17:30:00');
+
+        $attendance = $this->workflow->checkOut(
+            $this->employee,
+            $this->readingAtCompany(),
+            new EarlyCheckOutDraft(EarlyCheckOutReason::Other, 'typed before the clock struck'),
+        );
+
+        $this->assertFalse($attendance->isOpen());
+        $this->assertNull($attendance->early_check_out_reason);
+        $this->assertNull($attendance->early_check_out_note);
+    }
+
+    #[Test]
+    public function the_early_rule_follows_the_working_day_in_the_settings(): void
+    {
+        // The owner moved the end of the day to 15:00, so a 16:00
+        // departure has nothing to explain.
+        $this->configureWorkingHours(endsAt: '15:00');
+        $this->checkedIn($this->employee);
+        $this->freezeRiyadhClock('2026-09-02 16:00:00');
+
+        $attendance = $this->workflow->checkOut($this->employee, $this->readingAtCompany());
+
+        $this->assertFalse($attendance->isOpen());
+        $this->assertNull($attendance->early_check_out_reason);
+    }
+
+    /**
+     * The reason rule stands behind the location rule, not in front of it:
+     * a refused reading refuses the whole check-out, reason and all, and
+     * the reason of a departure that never happened is stored nowhere.
+     */
+    #[Test]
+    public function a_rejected_early_check_out_stores_no_reason(): void
+    {
+        $open = $this->checkedIn($this->employee);
+        $this->freezeRiyadhClock('2026-09-02 12:00:00');
+
+        $rejection = $this->expectRejection(
+            fn (): Attendance => $this->workflow->checkOut(
+                $this->employee,
+                $this->readingMetersFromCompany(300.0),
+                new EarlyCheckOutDraft(EarlyCheckOutReason::Sick, null),
+            ),
+        );
+
+        $this->assertSame(AttendanceRejectionReason::OutsideAllowedArea, $rejection->reason);
+
+        $stored = $open->fresh();
+
+        $this->assertInstanceOf(Attendance::class, $stored);
+        $this->assertTrue($stored->isOpen());
+        $this->assertNull($stored->early_check_out_reason);
     }
 
     /**

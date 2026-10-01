@@ -6,6 +6,7 @@ namespace Tests\Feature\Employee;
 
 use App\Enums\AttendanceAction;
 use App\Enums\AttendanceRejectionReason;
+use App\Enums\EarlyCheckOutReason;
 use App\Filament\Employee\Pages\Attendance;
 use App\Models\Attendance as AttendanceRecord;
 use App\Models\User;
@@ -189,7 +190,9 @@ final class AttendancePageTest extends TestCase
     public function checking_out_inside_the_radius_closes_todays_record(): void
     {
         $this->configureCompanyLocation();
-        $now = $this->freezeClock();
+        // After the end of the working day, so this is the plain check-out
+        // with nothing to explain; the early flow has its own tests below.
+        $now = $this->freezeClock('2026-09-02 17:05:00');
         $employee = $this->signInEmployee();
         $attendance = $this->checkedIn($employee);
 
@@ -598,6 +601,161 @@ final class AttendancePageTest extends TestCase
     }
 
     /**
+     * The page's advisory flag: the browser opens the reason modal before
+     * the location fix exactly while the server would demand one, and the
+     * flag follows the same clock the workflow reads.
+     */
+    #[Test]
+    public function the_page_flags_a_check_out_that_would_need_a_reason(): void
+    {
+        $this->configureCompanyLocation();
+        $this->freezeClock('2026-09-02 15:00:00');
+        $employee = $this->signInEmployee();
+
+        // Nothing open: nothing to check out of, so nothing to explain.
+        Livewire::test(Attendance::class)
+            ->assertSet('requiresEarlyCheckOutReason', false);
+
+        $this->checkedIn($employee);
+
+        Livewire::test(Attendance::class)
+            ->assertSet('requiresEarlyCheckOutReason', true);
+
+        $this->freezeClock('2026-09-02 17:00:00');
+
+        // The end of the day exactly is not early.
+        Livewire::test(Attendance::class)
+            ->assertSet('requiresEarlyCheckOutReason', false);
+    }
+
+    #[Test]
+    public function an_early_check_out_with_a_reason_closes_the_record_and_stores_it(): void
+    {
+        $this->configureCompanyLocation();
+        $now = $this->freezeClock('2026-09-02 15:00:00');
+        $employee = $this->signInEmployee();
+        $attendance = $this->checkedIn($employee);
+
+        Livewire::test(Attendance::class)
+            ->call('checkOut', $this->payload($this->readingMetersFromCompany(80.0)), [
+                'reason' => 'sick',
+                'note' => 'حجز عند الطبيب',
+            ])
+            ->assertSet('feedbackStatus', 'success');
+
+        $attendance->refresh();
+
+        $this->assertTrue($now->equalTo($attendance->check_out_at));
+        $this->assertSame(EarlyCheckOutReason::Sick, $attendance->early_check_out_reason);
+        $this->assertSame('حجز عند الطبيب', $attendance->early_check_out_note);
+    }
+
+    #[Test]
+    public function an_early_check_out_without_a_reason_is_refused_and_the_session_stays_open(): void
+    {
+        $this->configureCompanyLocation();
+        $this->freezeClock('2026-09-02 15:00:00');
+        $employee = $this->signInEmployee();
+        $attendance = $this->checkedIn($employee);
+
+        Livewire::test(Attendance::class)
+            ->call('checkOut', $this->payload($this->readingMetersFromCompany(80.0)))
+            ->assertSet('feedbackStatus', 'danger')
+            ->assertSet('feedbackMessage', __('attendance.rejections.early_check_out_reason_required'));
+
+        $this->assertTrue($attendance->fresh()?->isOpen());
+    }
+
+    /**
+     * The flag is advisory and time moves while a modal is open, so a
+     * reason can arrive with a check-out that is no longer early. It is
+     * dropped: a reason for leaving early on an on-time departure would be
+     * a claim about nothing.
+     */
+    #[Test]
+    public function a_reason_sent_with_an_on_time_check_out_is_not_stored(): void
+    {
+        $this->configureCompanyLocation();
+        $this->freezeClock('2026-09-02 17:05:00');
+        $employee = $this->signInEmployee();
+        $attendance = $this->checkedIn($employee);
+
+        Livewire::test(Attendance::class)
+            ->call('checkOut', $this->payload($this->readingMetersFromCompany(80.0)), [
+                'reason' => 'sick',
+                'note' => 'typed before the clock struck',
+            ])
+            ->assertSet('feedbackStatus', 'success');
+
+        $attendance->refresh();
+
+        $this->assertFalse($attendance->isOpen());
+        $this->assertNull($attendance->early_check_out_reason);
+        $this->assertNull($attendance->early_check_out_note);
+    }
+
+    /**
+     * The modal itself checks nobody out: it hands what was chosen back to
+     * the browser, which then takes the location fix and calls checkOut
+     * with the reason riding along.
+     */
+    #[Test]
+    public function the_reason_modal_hands_its_answer_back_to_the_browser(): void
+    {
+        $this->configureCompanyLocation();
+        $this->freezeClock('2026-09-02 15:00:00');
+        $employee = $this->signInEmployee();
+        $this->checkedIn($employee);
+
+        Livewire::test(Attendance::class)
+            ->callAction('earlyCheckOut', [
+                'reason' => EarlyCheckOutReason::PersonalErrand->value,
+                'note' => 'موعد رسمي',
+            ])
+            ->assertHasNoActionErrors()
+            ->assertDispatched(
+                'early-check-out-confirmed',
+                reason: EarlyCheckOutReason::PersonalErrand->value,
+                note: 'موعد رسمي',
+            );
+
+        // Nothing was written: the record closes only when the browser
+        // comes back with a location fix.
+        $this->assertSame(1, AttendanceRecord::query()->open()->count());
+    }
+
+    #[Test]
+    public function the_reason_modal_refuses_an_empty_reason(): void
+    {
+        $this->configureCompanyLocation();
+        $this->freezeClock('2026-09-02 15:00:00');
+        $employee = $this->signInEmployee();
+        $this->checkedIn($employee);
+
+        Livewire::test(Attendance::class)
+            ->callAction('earlyCheckOut', ['note' => 'بدون سبب'])
+            ->assertHasActionErrors(['reason' => 'required'])
+            ->assertNotDispatched('early-check-out-confirmed');
+    }
+
+    #[Test]
+    public function the_reason_the_employee_gave_is_shown_on_todays_timeline(): void
+    {
+        $this->configureCompanyLocation();
+        $this->freezeClock('2026-09-02 16:00:00');
+        $employee = $this->signInEmployee();
+
+        $session = $this->attendanceSession($employee, '08:00', '15:30');
+        $session->forceFill(['early_check_out_reason' => EarlyCheckOutReason::WorkAssignment])->save();
+
+        Livewire::test(Attendance::class)
+            ->assertOk()
+            ->assertSee(__('attendance.badges.left_early', [
+                'reason' => EarlyCheckOutReason::WorkAssignment->label(),
+            ]));
+    }
+
+    /**
      * Buttons rendered with the disabled attribute. The Alpine binding
      * (x-bind:disabled) and Filament's wire:loading.attr="disabled" also
      * contain the word, so only a bare attribute preceded by whitespace
@@ -620,10 +778,10 @@ final class AttendancePageTest extends TestCase
         $labels = [];
 
         foreach ($buttons as [, $attributes, $contents]) {
-            // The two attendance actions are the buttons that send a
-            // location reading; the quick-action tiles below them mount a
+            // The two attendance actions are the buttons whose tap goes
+            // through press(); the quick-action tiles below them mount a
             // modal instead and are not part of this ordering.
-            if (! str_contains($attributes, 'submit(')) {
+            if (! str_contains($attributes, 'press(')) {
                 continue;
             }
 

@@ -10,6 +10,7 @@ use App\Enums\AttendanceRejectionReason;
 use App\Enums\AttendanceStatus;
 use App\Enums\CorrectionReason;
 use App\Enums\CorrectionRefusalReason;
+use App\Enums\EarlyCheckOutReason;
 use App\Enums\EmploymentType;
 use App\Enums\LeaveRefusalReason;
 use App\Enums\LeaveType;
@@ -98,6 +99,7 @@ final class TranslationParityTest extends TestCase
                 RequestStatus::class,
                 CorrectionReason::class,
                 LeaveType::class,
+                EarlyCheckOutReason::class,
             ],
             $this->labelledEnums(),
         );

@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Filament\Employee\Pages;
 
+use App\Data\Attendance\EarlyCheckOutDraft;
 use App\Enums\AttendanceAction;
 use App\Enums\AttendanceStatus;
 use App\Exceptions\Attendance\AttendanceRejectedException;
+use App\Filament\Employee\Actions\EarlyCheckOutReasonAction;
 use App\Filament\Employee\Actions\RequestCorrectionAction;
 use App\Filament\Employee\Actions\RequestLeaveAction;
 use App\Filament\Employee\Concerns\BuildsQuickActionTiles;
@@ -91,6 +93,20 @@ final class Attendance extends Page implements ThrottlesRequests
      */
     public bool $sessionIsOpen = false;
 
+    /**
+     * Whether a check-out pressed right now would need a reason first,
+     * published to the browser so the Check Out tap knows to open the
+     * reason modal instead of going straight to the location fix.
+     *
+     * Advisory, like every flag the browser holds: recomputed on each
+     * render from the same clock the workflow will use, and the workflow's
+     * own refusal is the rule for a tap that arrives without a reason
+     * anyway. A tap that outlives the flag - pressed after the day ended
+     * on a page rendered before - asks a question the server then ignores,
+     * which costs one modal and stores nothing false.
+     */
+    public bool $requiresEarlyCheckOutReason = false;
+
     public static function getRoutePath(Panel $panel): string
     {
         return '/';
@@ -133,10 +149,11 @@ final class Attendance extends Page implements ThrottlesRequests
 
     /**
      * @param  array<string, mixed>  $reading
+     * @param  array<string, mixed>|null  $earlyCheckOut  what the reason modal collected, when it was shown
      */
-    public function checkOut(array $reading): void
+    public function checkOut(array $reading, ?array $earlyCheckOut = null): void
     {
-        $this->attempt(AttendanceAction::CheckOut, $reading);
+        $this->attempt(AttendanceAction::CheckOut, $reading, EarlyCheckOutDraft::fromPayload($earlyCheckOut));
     }
 
     /**
@@ -177,6 +194,11 @@ final class Attendance extends Page implements ThrottlesRequests
         return RequestCorrectionAction::make($this->employee());
     }
 
+    public function earlyCheckOutAction(): Action
+    {
+        return EarlyCheckOutReasonAction::make();
+    }
+
     public function requestLeaveAction(): Action
     {
         return RequestLeaveAction::make($this->employee());
@@ -198,7 +220,10 @@ final class Attendance extends Page implements ThrottlesRequests
     protected function getViewData(): array
     {
         $employee = $this->employee();
-        $today = app(AttendanceCalendar::class)->today();
+        // One clock read serves the whole render: the day the sessions are
+        // read for and the "is it early yet" comparison must agree.
+        $now = app(AttendanceCalendar::class)->now();
+        $today = $now->startOfDay();
         $settings = AttendanceSetting::current();
         $day = AttendanceDaySummary::forEmployee($employee, $today);
 
@@ -219,6 +244,12 @@ final class Attendance extends Page implements ThrottlesRequests
         // session still open stands in the way of a check-in.
         $canCheckIn = $settings->isConfigured() && ! $day->isCheckedIn();
         $canCheckOut = $settings->isConfigured() && $day->isCheckedIn();
+
+        // Strictly before the end of the working day, on the same clock
+        // the workflow will read: the tap that follows this render opens
+        // the reason modal first when this is true.
+        $this->requiresEarlyCheckOutReason = $canCheckOut
+            && $now->lessThan($settings->workingHours()->endOn($today));
 
         return [
             'employeeName' => $employee->name,
@@ -306,7 +337,7 @@ final class Attendance extends Page implements ThrottlesRequests
      * has not finished, and saying so in a word keeps the timeline readable
      * without relying on the colour of its marker.
      *
-     * @return list<array{number: int, checkIn: string, checkOut: string, duration: string, isOpen: bool, isCorrected: bool}>
+     * @return list<array{number: int, checkIn: string, checkOut: string, duration: string, isOpen: bool, isCorrected: bool, earlyReason: ?string}>
      */
     private function sessionRows(AttendanceDaySummary $day): array
     {
@@ -328,6 +359,10 @@ final class Attendance extends Page implements ThrottlesRequests
                 // corrected costs nothing and the employee is never shown a
                 // moment this system verified by location when it did not.
                 'isCorrected' => $session->isCorrected(),
+                // The reason the employee themselves gave for closing this
+                // session early, shown back to them: what they stated is
+                // part of their own record of the day.
+                'earlyReason' => $session->leftEarly() ? $session->early_check_out_reason?->label() : null,
             ];
         }
 
@@ -341,7 +376,7 @@ final class Attendance extends Page implements ThrottlesRequests
      *
      * @param  array<string, mixed>  $reading
      */
-    private function attempt(AttendanceAction $action, array $reading): void
+    private function attempt(AttendanceAction $action, array $reading, ?EarlyCheckOutDraft $earlyCheckOut = null): void
     {
         try {
             $this->rateLimit(10, method: $action->value);
@@ -365,7 +400,7 @@ final class Attendance extends Page implements ThrottlesRequests
         try {
             $attendance = $action === AttendanceAction::CheckIn
                 ? $workflow->checkIn($employee, $location)
-                : $workflow->checkOut($employee, $location);
+                : $workflow->checkOut($employee, $location, $earlyCheckOut);
         } catch (AttendanceRejectedException $exception) {
             $this->feedback($exception->getMessage(), 'danger');
 

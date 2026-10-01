@@ -8,6 +8,7 @@ use App\Filament\Resources\Attendances\AttendanceResource;
 use App\Filament\Resources\AttendanceSettings\AttendanceSettingResource;
 use App\Filament\Resources\Employees\EmployeeResource;
 use App\Filament\Widgets\AttendanceStatsWidget;
+use App\Filament\Widgets\LateArrivalsWidget;
 use App\Filament\Widgets\RequestsQueueWidget;
 use App\Services\Attendance\AttendanceCalendar;
 use BackedEnum;
@@ -68,9 +69,12 @@ final class Dashboard extends BaseDashboard
     {
         return [
             // The queues come first: they are the only thing on this page
-            // that asks the reader to do something today.
+            // that asks the reader to do something today. The late list
+            // comes last - it is a report on a morning already over, and
+            // asks the reader for nothing.
             RequestsQueueWidget::class,
             AttendanceStatsWidget::class,
+            LateArrivalsWidget::class,
         ];
     }
 

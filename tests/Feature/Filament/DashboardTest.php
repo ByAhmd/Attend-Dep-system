@@ -13,6 +13,7 @@ use App\Filament\Resources\AttendanceSettings\AttendanceSettingResource;
 use App\Filament\Resources\Employees\EmployeeResource;
 use App\Filament\Resources\LeaveRequests\LeaveRequestResource;
 use App\Filament\Widgets\AttendanceStatsWidget;
+use App\Filament\Widgets\LateArrivalsWidget;
 use App\Filament\Widgets\RequestsQueueWidget;
 use App\Services\Attendance\AttendanceCalendar;
 use Closure;
@@ -240,8 +241,10 @@ final class DashboardTest extends TestCase
     #[Test]
     public function the_queue_widget_is_on_the_dashboard_above_the_days_figures(): void
     {
+        // The queues ask for an answer, the figures describe the day, and
+        // the late list reports a morning already over - in that order.
         $this->assertSame(
-            [RequestsQueueWidget::class, AttendanceStatsWidget::class],
+            [RequestsQueueWidget::class, AttendanceStatsWidget::class, LateArrivalsWidget::class],
             (new Dashboard)->getWidgets(),
         );
 
@@ -249,6 +252,42 @@ final class DashboardTest extends TestCase
             ->assertOk()
             ->assertSee(__('dashboard.stats.pending_corrections'))
             ->assertSee(__('dashboard.stats.pending_leave'));
+    }
+
+    #[Test]
+    public function the_late_arrivals_widget_lists_who_arrived_late_and_how_late(): void
+    {
+        $this->freezeRiyadhClock('2026-09-02 11:00:00');
+
+        $sara = $this->makeEmployee('sara@company.test');
+        $omar = $this->makeEmployee('omar@company.test');
+
+        $this->attendanceSession($sara, '09:45');
+        $this->attendanceSession($omar, '09:10');
+
+        Livewire::test(LateArrivalsWidget::class)
+            ->assertOk()
+            ->assertSee(__('dashboard.late.heading'))
+            ->assertSee($sara->name)
+            ->assertSee('09:45')
+            // 45 minutes, measured from the 09:00 start of the working
+            // day - the description above the list says so out loud.
+            ->assertSee(__('attendance.units.duration_minutes', ['minutes' => '45']))
+            ->assertDontSee($omar->name);
+    }
+
+    #[Test]
+    public function a_morning_with_nobody_late_is_shown_as_one(): void
+    {
+        // The list stays on the page with its empty state: a table that
+        // appeared only when somebody was late would teach the reader to
+        // distrust its absence.
+        $this->freezeRiyadhClock('2026-09-02 11:00:00');
+        $this->attendanceSession($this->makeEmployee('sara@company.test'), '09:05');
+
+        Livewire::test(LateArrivalsWidget::class)
+            ->assertOk()
+            ->assertSee(__('dashboard.late.empty_heading'));
     }
 
     #[Test]

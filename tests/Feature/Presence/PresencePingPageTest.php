@@ -246,7 +246,9 @@ final class PresencePingPageTest extends TestCase
             ->assertSet('sessionIsOpen', false)
             ->call('checkIn', $payload)
             ->assertSet('sessionIsOpen', true)
-            ->call('checkOut', $payload)
+            // 10:20 is long before the end of the working day, so this
+            // check-out carries the reason the modal would have collected.
+            ->call('checkOut', $payload, ['reason' => 'personal_errand'])
             ->assertSet('sessionIsOpen', false);
     }
 

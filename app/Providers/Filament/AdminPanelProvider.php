@@ -15,6 +15,7 @@ use App\Filament\Resources\JobTitles\JobTitleResource;
 use App\Filament\Resources\LeaveRequests\LeaveRequestResource;
 use App\Filament\Resources\PresencePings\PresencePingResource;
 use App\Filament\Widgets\AttendanceStatsWidget;
+use App\Filament\Widgets\LateArrivalsWidget;
 use App\Filament\Widgets\RequestsQueueWidget;
 use App\Providers\Filament\Concerns\ConfiguresPanel;
 use App\Support\Filament\PanelAccess;
@@ -86,6 +87,7 @@ final class AdminPanelProvider extends PanelProvider
                 ->widgets([
                     RequestsQueueWidget::class,
                     AttendanceStatsWidget::class,
+                    LateArrivalsWidget::class,
                 ]),
         );
     }

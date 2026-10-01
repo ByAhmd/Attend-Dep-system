@@ -16,8 +16,18 @@ correction or a leave request arriving, for every administrator, and that reques
 being approved or rejected, for the one employee who filed it. Nothing else is ever
 notified.
 
-**That is the whole business scope.** No payroll; no work schedules or shifts, and
-therefore no lateness, permitted lateness, overtime or hour accrual; no departments or
+The system knows one **official working day** (default 09:00–17:00, set in the
+attendance settings). It is used for exactly two things: the day's **first** check-in
+more than the grace period (default 30 min) after the start is marked **late** and
+listed on the admin dashboard with its lateness measured from the start of the day;
+and a check-out strictly before the end asks the employee to **choose a reason**
+(plus an optional note), which is stored on the session and shown to the
+administrator. That is all the working day does — it never blocks a check-in or a
+check-out, and a late arrival or early departure is reported, never punished.
+
+**That is the whole business scope.** No payroll; no shifts or per-employee
+schedules — one working day for the whole company, and no overtime or hour accrual
+derived from it; no departments or
 teams, and therefore no team leave; no biometric hardware and none of its vocabulary;
 no announcements feed, no messaging, no email and no push - the bell is a bell about
 requests and is not a channel anybody may broadcast on; no profile editing or avatars,
@@ -74,8 +84,8 @@ Layers, exactly as in the ZonKSA/StockFlow projects:
 ```
 app/Enums/                 UserRole, UserStatus, EmploymentType, AttendanceStatus,
                            AttendanceAction, AttendanceRejectionReason, RequestStatus,
-                           CorrectionReason, LeaveType, NavigationGroup — label() +
-                           options(); CorrectionRefusalReason and LeaveRefusalReason
+                           CorrectionReason, LeaveType, EarlyCheckOutReason,
+                           NavigationGroup — label() + options(); CorrectionRefusalReason and LeaveRefusalReason
                            carry message(), and RequestKind carries only icon(), so
                            the parity test's glob does not find any of the three and
                            must not be told to;
@@ -86,9 +96,12 @@ app/Support/Filament/      PanelAccess — which panel a user may enter;
                            LanguageMenuItems — the language entry of the user menu;
                            RequestNoticeLink — where a line in the bell opens, panel
                            named explicitly because both bells hold both kinds
-app/Support/Attendance/    SessionDuration — hours and minutes, as Meters is for distance
+app/Support/Attendance/    SessionDuration — hours and minutes, as Meters is for distance;
+                           WorkingHours — the official day's arithmetic (start, end,
+                           grace), always asked with the day it is about
 app/Data/Attendance/       LocationVerification — the backend verdict on one reading;
-                           CorrectionDraft — what the employee stated on the form
+                           CorrectionDraft — what the employee stated on the form;
+                           EarlyCheckOutDraft — the reason chosen for leaving early
 app/Data/Leave/            LeaveDraft
 app/Data/Requests/         RequestNotice — one line in somebody's bell, held as facts
                            rather than as a finished sentence
@@ -96,7 +109,8 @@ app/Services/Geolocation/  DistanceCalculator (haversine), LocationReadingValida
 app/Services/Attendance/   AttendanceCalendar, LocationVerifier, AttendanceWorkflow,
                            AttendanceDashboardMetrics, AttendanceDaySummary (one
                            employee's day as its sessions), PresencePingRecorder,
-                           CorrectionQuota, AttendanceCorrectionWorkflow
+                           CorrectionQuota, AttendanceCorrectionWorkflow,
+                           LateArrivals (today's late list, derived, never stored)
 app/Services/Leave/        LeaveRequestWorkflow, LeaveConflicts
 app/Services/Requests/     RequestQueueMetrics, EmployeeRequestCounts,
                            RequestAudience — who counts as an administrator to notify
@@ -239,6 +253,25 @@ The Filament layer validates input (`LocationReadingValidator`), calls
 - Nothing prunes `notifications`. Fifteen people filing a few requests a week produce a
   few thousand rows a year behind a covering index; the reader clears their own with the
   bell's own button, and there is no cron on this host to add a command to.
+- The official working day (start, end, late grace in minutes) lives in
+  `attendance_settings` beside the radius; defaults 09:00 / 17:00 / 30 are in
+  `config/attendance.php` and mirror the brief. **Lateness is derived, never
+  stored**: the verdict belongs to the employee-day and is made by its first
+  check-in strictly after start-plus-grace, measured from the start (09:45 against
+  a 09:00 start is 45 minutes late, not 15), and every screen that says so states
+  the arithmetic. A return from lunch is never a late arrival. Changing the
+  working day re-derives history, exactly as it would for a derived status.
+- **Early check-out is stored, not derived**: a check-out strictly before the end
+  of the working day (measured at the server's moment of the check-out) is accepted
+  only with a reason — `EarlyCheckOutReason` plus an optional note ≤ 500 chars,
+  written on the session by the workflow. The page asks for the reason in a modal
+  before taking the location fix; the workflow's refusal
+  (`early_check_out_reason_required`, a state rule, never audited) is the backstop
+  for payloads that skip it. A reason arriving with an on-time check-out is
+  dropped, and a rejected reading stores no reason. CHECK constraints keep the
+  columns honest: known values only, no note without a reason, no reason without a
+  check-out. Corrections are untouched by the rule — an administrator amending a
+  session neither needs a reason nor erases one.
 - Company coordinates, radius and the monthly correction allowance live only in
   `attendance_settings` (single row, `AttendanceSetting::current()`); the default radius
   150 and the default allowance 3 are in `config/attendance.php`.

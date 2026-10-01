@@ -270,4 +270,27 @@ trait CreatesAttendanceFixtures
 
         return $settings;
     }
+
+    /**
+     * The official working day lateness and early departure are measured
+     * against. The defaults restate the brief's 09:00–17:00 with a
+     * half-hour grace - the same values a fresh settings row carries - so
+     * calling this with no arguments only makes a test's assumption
+     * visible where its assertions are.
+     */
+    protected function configureWorkingHours(
+        string $startsAt = '09:00',
+        string $endsAt = '17:00',
+        int $graceMinutes = 30,
+    ): AttendanceSetting {
+        $settings = AttendanceSetting::current();
+
+        $settings->forceFill([
+            'work_starts_at' => $startsAt,
+            'work_ends_at' => $endsAt,
+            'late_grace_minutes' => $graceMinutes,
+        ])->save();
+
+        return $settings;
+    }
 }

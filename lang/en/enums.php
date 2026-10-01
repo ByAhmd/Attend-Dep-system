@@ -33,6 +33,14 @@ return [
         'already_checked_out' => 'Already checked out',
         'insufficient_accuracy' => 'Insufficient location accuracy',
         'outside_allowed_area' => 'Outside the allowed area',
+        'early_check_out_reason_required' => 'Early check-out without a reason',
+    ],
+
+    'early_check_out_reason' => [
+        'sick' => 'Feeling unwell',
+        'personal_errand' => 'Personal errand',
+        'work_assignment' => 'Work assignment outside the company',
+        'other' => 'Other',
     ],
 
     'employment_type' => [

@@ -69,6 +69,14 @@
                 failed: @js(__('attendance.feedback.failed')),
             },
         })"
+        {{--
+         | The reason modal's answer comes back as a browser event: the
+         | modal collects the words, the browser then takes the location
+         | fix, and the check-out call carries both. Listening on window
+         | because the modal is Filament's own component, not a child of
+         | this one.
+         --}}
+        x-on:early-check-out-confirmed.window="submit('checkOut', $event.detail)"
         class="flex w-full flex-col gap-4 text-start"
     >
         {{--
@@ -220,6 +228,20 @@
                                                     {{ __('attendance.badges.corrected') }}
                                                 </span>
                                             @endif
+
+                                            {{-- The reason the employee gave
+                                                 for closing this session
+                                                 before the end of the day,
+                                                 shown back to them in the
+                                                 quiet grey of a settled
+                                                 fact: they stated it, and
+                                                 it is part of their record. --}}
+                                            @if ($session['earlyReason'] !== null)
+                                                <span class="inline-flex items-center gap-1 rounded-md bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600 dark:bg-white/10 dark:text-gray-300">
+                                                    <x-filament::icon icon="heroicon-m-arrow-up-tray" class="size-3.5" />
+                                                    {{ __('attendance.badges.left_early', ['reason' => $session['earlyReason']]) }}
+                                                </span>
+                                            @endif
                                         </div>
 
                                         <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
@@ -261,7 +283,7 @@
                                 'min-h-11' => ! $loop->first,
                             ])
                             :disabled="! $action['enabled']"
-                            x-on:click="submit('{{ $action['key'] }}')"
+                            x-on:click="press('{{ $action['key'] }}')"
                             x-bind:disabled="isBusy || ! {{ $action['alpineFlag'] }}"
                         >
                             <span class="inline-flex items-center gap-2">
@@ -403,7 +425,26 @@
                     return this.state !== 'idle'
                 },
 
-                async submit(action) {
+                /*
+                 | What a button tap does. A check-out before the end of the
+                 | working day needs a reason first, so that tap opens the
+                 | reason modal and the flow continues from its answer (the
+                 | window listener above); every other tap goes straight to
+                 | the location fix. The flag is the server's, re-synced on
+                 | every round trip, and the server re-decides regardless -
+                 | this only chooses which screen the employee sees first.
+                 */
+                press(action) {
+                    if (action === 'checkOut' && this.$wire.requiresEarlyCheckOutReason) {
+                        this.$wire.mountAction('earlyCheckOut')
+
+                        return
+                    }
+
+                    this.submit(action)
+                },
+
+                async submit(action, earlyCheckOut = null) {
                     if (this.state !== 'idle') {
                         return
                     }
@@ -435,12 +476,24 @@
 
                     this.transition('verifying', messages.verifying)
 
+                    const payload = {
+                        latitude: reading.latitude,
+                        longitude: reading.longitude,
+                        accuracy: reading.accuracy,
+                    }
+
                     try {
-                        await this.$wire[action]({
-                            latitude: reading.latitude,
-                            longitude: reading.longitude,
-                            accuracy: reading.accuracy,
-                        })
+                        // The reason rides along only when the modal ran:
+                        // checkIn's signature has no second parameter to
+                        // receive one.
+                        if (earlyCheckOut === null) {
+                            await this.$wire[action](payload)
+                        } else {
+                            await this.$wire[action](payload, {
+                                reason: earlyCheckOut.reason ?? null,
+                                note: earlyCheckOut.note ?? null,
+                            })
+                        }
                     } catch (error) {
                         this.fail(messages.failed)
 

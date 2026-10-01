@@ -33,6 +33,14 @@ return [
         'already_checked_out' => 'تم تسجيل الانصراف مسبقًا',
         'insufficient_accuracy' => 'دقة الموقع غير كافية',
         'outside_allowed_area' => 'خارج النطاق المسموح',
+        'early_check_out_reason_required' => 'انصراف مبكّر بدون سبب',
+    ],
+
+    'early_check_out_reason' => [
+        'sick' => 'وعكة صحية',
+        'personal_errand' => 'ظرف شخصي',
+        'work_assignment' => 'مهمة عمل خارج الشركة',
+        'other' => 'سبب آخر',
     ],
 
     'employment_type' => [

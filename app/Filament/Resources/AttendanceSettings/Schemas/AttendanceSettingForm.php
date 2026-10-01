@@ -6,6 +6,7 @@ namespace App\Filament\Resources\AttendanceSettings\Schemas;
 
 use App\Models\AttendanceSetting;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\TimePicker;
 use Filament\Schemas\Components\Callout;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
@@ -46,6 +47,10 @@ final class AttendanceSettingForm
         $quotaBounds = config('attendance.correction_quota_bounds');
         $minQuota = (int) $quotaBounds['min'];
         $maxQuota = (int) $quotaBounds['max'];
+
+        $graceBounds = config('attendance.late_grace_bounds');
+        $minGrace = (int) $graceBounds['min'];
+        $maxGrace = (int) $graceBounds['max'];
 
         return $schema
             ->components([
@@ -119,6 +124,54 @@ final class AttendanceSettingForm
                     // belongs to rather than a hand's width away from them.
                     ->columns(2),
 
+                // The working day is what lateness and early departure are
+                // measured against, so its sentence has to say both: an
+                // arrival after start-plus-grace is marked late, and a
+                // check-out before the end asks for a reason.
+                Section::make(__('settings.sections.working_hours'))
+                    ->icon(Heroicon::OutlinedClock)
+                    ->description(__('settings.helpers.working_hours'))
+                    ->aside()
+                    ->schema([
+                        TimePicker::make('work_starts_at')
+                            ->label(__('settings.fields.work_starts_at'))
+                            ->seconds(false)
+                            ->required()
+                            ->validationMessages([
+                                'required' => __('settings.validation.work_time'),
+                            ]),
+
+                        TimePicker::make('work_ends_at')
+                            ->label(__('settings.fields.work_ends_at'))
+                            ->seconds(false)
+                            ->required()
+                            ->after('work_starts_at')
+                            ->validationMessages([
+                                'required' => __('settings.validation.work_time'),
+                                'after' => __('settings.validation.working_day_ordered'),
+                            ]),
+
+                        TextInput::make('late_grace_minutes')
+                            ->label(__('settings.fields.late_grace_minutes'))
+                            ->helperText(__('settings.helpers.late_grace_minutes'))
+                            ->numeric()
+                            ->integer()
+                            ->required()
+                            ->minValue($minGrace)
+                            ->maxValue($maxGrace)
+                            ->default((int) config('attendance.default_late_grace_minutes'))
+                            ->suffix(__('settings.fields.late_grace_suffix'))
+                            ->validationMessages([
+                                'required' => self::graceMessage($minGrace, $maxGrace),
+                                'numeric' => self::graceMessage($minGrace, $maxGrace),
+                                'integer' => self::graceMessage($minGrace, $maxGrace),
+                                'min' => self::graceMessage($minGrace, $maxGrace),
+                                'max' => self::graceMessage($minGrace, $maxGrace),
+                            ])
+                            ->columnSpanFull(),
+                    ])
+                    ->columns(2),
+
                 Section::make(__('settings.sections.corrections'))
                     ->icon(Heroicon::OutlinedPencilSquare)
                     ->description(__('settings.helpers.correction_requests_per_month'))
@@ -151,5 +204,10 @@ final class AttendanceSettingForm
     private static function radiusMessage(int $min, int $max): string
     {
         return __('settings.validation.radius', ['min' => $min, 'max' => $max]);
+    }
+
+    private static function graceMessage(int $min, int $max): string
+    {
+        return __('settings.validation.late_grace', ['min' => $min, 'max' => $max]);
     }
 }

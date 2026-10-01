@@ -97,4 +97,41 @@ return [
         'max' => 31,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Default working day
+    |--------------------------------------------------------------------------
+    |
+    | When the official working day starts and ends, and how many minutes
+    | after the start an arrival is still not marked late. Only the values
+    | the settings row is created with; the live working day is edited from
+    | the admin panel. The brief fixes it at 09:00–17:00 with lateness from
+    | 09:30, so the default grace is 30 minutes. A check-out before the end
+    | of the day is accepted only together with a reason.
+    |
+    */
+
+    'default_work_starts_at' => '09:00',
+
+    'default_work_ends_at' => '17:00',
+
+    'default_late_grace_minutes' => 30,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Late grace bounds
+    |--------------------------------------------------------------------------
+    |
+    | What the settings form will accept. Zero is a real setting and means
+    | an arrival a second past the start is already late. Four hours is the
+    | ceiling because a grace nobody can exceed is lateness switched off,
+    | and that is not a setting this product offers.
+    |
+    */
+
+    'late_grace_bounds' => [
+        'min' => 0,
+        'max' => 240,
+    ],
+
 ];
