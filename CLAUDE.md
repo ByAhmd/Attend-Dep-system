@@ -111,7 +111,8 @@ app/Services/Attendance/   AttendanceCalendar, LocationVerifier, AttendanceWorkf
                            employee's day as its sessions), PresencePingRecorder,
                            CorrectionQuota, AttendanceCorrectionWorkflow,
                            LateArrivals (today's late list, derived, never stored)
-app/Services/Leave/        LeaveRequestWorkflow, LeaveConflicts
+app/Services/Leave/        LeaveRequestWorkflow, LeaveConflicts, LeaveAttachmentStore
+                           (the supporting document: store, stream, discard)
 app/Services/Requests/     RequestQueueMetrics, EmployeeRequestCounts,
                            RequestAudience — who counts as an administrator to notify
 app/Services/Users/        EmployeeInvitationService + Invitation (url, emailed)
@@ -132,7 +133,10 @@ app/Models/                User, JobTitle, Attendance (one SESSION), AttendanceR
 app/Policies/              one per model; employees never write attendance
 app/Http/Middleware/       EnsureAccountIsActive (signs out deactivated accounts),
                            SetLocale (applies the language cookie; persistent for Livewire)
-app/Http/Controllers/      SwitchLocaleController — GET /locale/{ar|en}, the only web route
+app/Http/Controllers/      SwitchLocaleController — GET /locale/{ar|en};
+                           LeaveAttachmentController — GET /leave-requests/{id}/attachment,
+                           authorised by the leave request's own policy; the only two
+                           web routes
 app/Console/Commands/      CreateAdminCommand (app:create-admin — the first administrator)
 app/Filament/Auth/         ResetPassword — the stock page admits a Pending account so an
                            invitation can be accepted; Inactive is still refused
@@ -219,8 +223,11 @@ The Filament layer validates input (`LocationReadingValidator`), calls
   enforces. It lives on a private disk, never under `public/`; it is reached only through
   a route that asks the same policy as the request it belongs to, so the path is never a
   capability; the browser sends a file and never a path; and it is deleted with the
-  request. The columns exist ahead of that machinery — until it lands they stay NULL and
-  nothing reads them, which is deliberate and not dead code.
+  request. The machinery is `LeaveAttachmentStore` (store, stream, discard — deletion
+  lives there, not in a model event, because bulk deletes skip model events) and the
+  digits-constrained route in `routes/web.php` behind the employee panel's own
+  middleware; no interface deletes a leave request, so `discard()` is the door a
+  future deletion must use.
 - A request belonging to a soft-deleted account leaves the approval queue and comes back
   if the account is restored. This is a scope over live state, not a column stamped on
   delete.
