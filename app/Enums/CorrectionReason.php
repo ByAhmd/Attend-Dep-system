@@ -49,7 +49,7 @@ enum CorrectionReason: string
      * note stops being optional.
      *
      * A forgotten tap or a failed fix leaves its own traces - an open
-     * session, a rejected attempt, a gap in the pings. "I was working from
+     * session, a rejected attempt. "I was working from
      * home" leaves none, and an approver with nothing to read is being
      * asked to take it on trust.
      */

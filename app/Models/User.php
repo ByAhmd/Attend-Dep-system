@@ -35,8 +35,8 @@ use SensitiveParameter;
  * environment every account would reach every panel.
  *
  * Accounts are soft deleted, never removed. "Delete" here means hide and
- * keep the records: the row stays, so the attendance rows, rejected
- * attempts and presence pings that point at it still read with the person's
+ * keep the records: the row stays, so the attendance rows and rejected
+ * attempts that point at it still read with the person's
  * name on them, while Eloquent's global scope takes the account out of the
  * employee list and out of the authentication provider's reach, which is
  * what stops it signing in.

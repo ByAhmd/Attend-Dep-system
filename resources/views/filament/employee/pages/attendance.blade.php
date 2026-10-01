@@ -57,7 +57,6 @@
         x-data="attendanceLocator({
             canCheckIn: @js($canCheckIn),
             canCheckOut: @js($canCheckOut),
-            pingIntervalMs: @js($pingIntervalMs),
             messages: {
                 locating: @js(__('attendance.feedback.locating')),
                 verifying: @js(__('attendance.feedback.verifying')),
@@ -365,7 +364,6 @@
             $hints = [
                 'heroicon-o-arrow-path' => __('attendance.page.sessions_hint'),
                 'heroicon-o-map-pin' => __('attendance.page.location_hint'),
-                'heroicon-o-signal' => __('presence.employee.hint'),
             ];
         @endphp
 
@@ -391,35 +389,13 @@
          | server does every measurement.
          */
         document.addEventListener('alpine:init', () => {
-            Alpine.data('attendanceLocator', ({ canCheckIn, canCheckOut, pingIntervalMs, messages }) => ({
+            Alpine.data('attendanceLocator', ({ canCheckIn, canCheckOut, messages }) => ({
                 canCheckIn,
                 canCheckOut,
                 state: 'idle',
                 pending: null,
                 message: null,
                 status: 'info',
-                pingTimer: null,
-                onVisibilityChange: null,
-
-                init() {
-                    /*
-                     | The presence loop lives beside the buttons but never
-                     | in front of them: it starts itself when a session is
-                     | open, and the visibility listener stops it the moment
-                     | the page goes to the background.
-                     */
-                    this.onVisibilityChange = () => this.schedulePings()
-
-                    document.addEventListener('visibilitychange', this.onVisibilityChange)
-
-                    this.schedulePings()
-                },
-
-                destroy() {
-                    this.stopPings()
-
-                    document.removeEventListener('visibilitychange', this.onVisibilityChange)
-                },
 
                 get isBusy() {
                     return this.state !== 'idle'
@@ -505,92 +481,6 @@
                     this.status = 'info'
                     this.state = 'idle'
                     this.pending = null
-
-                    // That round trip may have opened or closed the session.
-                    this.schedulePings()
-                },
-
-                /*
-                 | Presence pings: while a session is open and this page is
-                 | in front of the employee, the browser reports where it is
-                 | every few minutes. Supporting evidence and nothing more -
-                 | a phone only reports while its page is open and awake, so
-                 | the loop stops with the page and the gaps it leaves prove
-                 | nothing about where anybody was.
-                 |
-                 | It is silent from end to end: no message, no spinner, no
-                 | button state. Whatever goes wrong - no permission, no fix,
-                 | no connection, a throttled request - the employee is told
-                 | nothing, because none of it is theirs to act on.
-                 */
-                get shouldPing() {
-                    return pingIntervalMs > 0
-                        && this.$wire.sessionIsOpen
-                        && ! document.hidden
-                        && 'geolocation' in navigator
-                        && window.isSecureContext
-                },
-
-                schedulePings() {
-                    if (! this.shouldPing) {
-                        this.stopPings()
-
-                        return
-                    }
-
-                    if (this.pingTimer === null) {
-                        this.pingTimer = setInterval(() => this.sendPing(), pingIntervalMs)
-                    }
-                },
-
-                stopPings() {
-                    if (this.pingTimer !== null) {
-                        clearInterval(this.pingTimer)
-
-                        this.pingTimer = null
-                    }
-                },
-
-                async sendPing() {
-                    // Conditions are re-read on every tick: the session may
-                    // have been closed in another tab, and the page may have
-                    // been hidden between two of them.
-                    if (! this.shouldPing) {
-                        this.stopPings()
-
-                        return
-                    }
-
-                    // A check-in or check-out is being verified. Its reading
-                    // is the one that decides something; a ping waits for
-                    // the next tick rather than competing with it.
-                    if (this.isBusy) {
-                        return
-                    }
-
-                    let reading
-
-                    try {
-                        reading = await this.locate()
-                    } catch {
-                        return
-                    }
-
-                    // The session may have closed while the fix was being taken.
-                    if (! this.shouldPing || this.isBusy) {
-                        return
-                    }
-
-                    try {
-                        await this.$wire.ping({
-                            latitude: reading.latitude,
-                            longitude: reading.longitude,
-                            accuracy: reading.accuracy,
-                        })
-                    } catch {
-                        // A ping that never arrives is simply a ping that
-                        // was never recorded.
-                    }
                 },
 
                 /*

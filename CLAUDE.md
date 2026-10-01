@@ -93,7 +93,7 @@ Two Filament panels, explicit registration (no directory discovery):
 | Panel | Path | Who | Contents |
 |---|---|---|---|
 | `employee` (default) | `/` (`/login`, `/`, `/requests`) | every active account | `App\Filament\Employee\Pages\Attendance` + history widget; `Pages\Requests` + the two request widgets; the bell |
-| `admin` | `/admin` | administrators | Employees, Job titles, Attendance records, Rejected attempts, Presence pings, Correction requests, Leave requests, Attendance settings, Official holidays, Dashboard, Monthly report; the bell |
+| `admin` | `/admin` | administrators | Employees, Job titles, Attendance records, Rejected attempts, Correction requests, Leave requests, Attendance settings, Official holidays, Dashboard, Monthly report; the bell |
 
 Layers, exactly as in the ZonKSA/StockFlow projects:
 
@@ -126,7 +126,7 @@ app/Data/Requests/         RequestNotice — one line in somebody's bell, held a
 app/Services/Geolocation/  DistanceCalculator (haversine), LocationReadingValidator
 app/Services/Attendance/   AttendanceCalendar, LocationVerifier, AttendanceWorkflow,
                            AttendanceDashboardMetrics, AttendanceDaySummary (one
-                           employee's day as its sessions), PresencePingRecorder,
+                           employee's day as its sessions),
                            CorrectionQuota, AttendanceCorrectionWorkflow,
                            LateArrivals (today's late list, derived, never stored),
                            WorkingCalendar (weekend + holidays: who was expected),
@@ -152,7 +152,7 @@ app/Exceptions/Attendance/ AttendanceRejectedException (reason enum + verificati
 app/Exceptions/Leave/      LeaveRequestRefusedException
 app/Models/                User, JobTitle, Attendance (one SESSION), AttendanceRejection,
                            AttendanceCorrection, LeaveRequest, AttendanceSetting,
-                           PresencePing, Holiday
+                           Holiday
 app/Policies/              one per model; employees never write attendance
 app/Http/Middleware/       EnsureAccountIsActive (signs out deactivated accounts),
                            SetLocale (applies the language cookie; persistent for Livewire)
@@ -198,9 +198,12 @@ The Filament layer validates input (`LocationReadingValidator`), calls
 - **Check-out** requires: an open session today, then the same location test.
 - A session left open on an earlier day is shown as *Missing check-out* and is never
   closed automatically.
-- **Presence pings** are recorded only while a session is open and only while the page is
-  open and the phone awake. They are supporting evidence, never proof of absence, and no
-  interface may imply otherwise. A gap means nothing on its own.
+- **There are no presence pings.** The feature existed (2026-09-07 to 2026-10-01) and
+  was removed entirely at the owner's decision, table included: it collected an
+  employee's position every five minutes while being forbidden by its own rules from
+  proving anything, and that trade of privacy for non-evidence was wrong. The two
+  geofenced moments - check-in and check-out - are the only location this product
+  records, and that is a promise to the people being measured, not a gap.
 - Employees set their own password through an invitation. A new account is **Pending**
   with a NULL password until its owner follows the link; Pending cannot sign in.
 - The browser sends **only latitude, longitude, accuracy**. The server computes the

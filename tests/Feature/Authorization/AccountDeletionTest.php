@@ -7,10 +7,8 @@ namespace Tests\Feature\Authorization;
 use App\Filament\Resources\AttendanceRejections\Pages\ListAttendanceRejections;
 use App\Filament\Resources\Attendances\Pages\ListAttendances;
 use App\Filament\Resources\Employees\Pages\ListEmployees;
-use App\Filament\Resources\PresencePings\Pages\ListPresencePings;
 use App\Models\Attendance;
 use App\Models\AttendanceRejection;
-use App\Models\PresencePing;
 use App\Models\User;
 use Filament\Facades\Filament;
 use Illuminate\Auth\SessionGuard;
@@ -152,30 +150,6 @@ final class AccountDeletionTest extends TestCase
 
         Livewire::test(ListAttendanceRejections::class)
             ->assertCanSeeTableRecords([$rejection])
-            ->assertSee('Sara Ali');
-    }
-
-    #[Test]
-    public function a_deleted_employees_name_stays_on_their_presence_pings(): void
-    {
-        $employee = $this->namedEmployee();
-        $session = $this->checkedIn($employee);
-        $ping = PresencePing::query()->create([
-            'user_id' => $employee->id,
-            'attendance_id' => $session->id,
-            'latitude' => 24.7336,
-            'longitude' => 46.6753,
-            'accuracy' => 12.0,
-            'distance_from_company' => 40.0,
-            'is_inside' => true,
-        ]);
-
-        $employee->delete();
-
-        $this->assertSame('Sara Ali', PresencePing::query()->find($ping->getKey())?->user->name);
-
-        Livewire::test(ListPresencePings::class)
-            ->assertCanSeeTableRecords([$ping])
             ->assertSee('Sara Ali');
     }
 

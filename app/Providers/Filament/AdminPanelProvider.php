@@ -15,7 +15,6 @@ use App\Filament\Resources\Employees\EmployeeResource;
 use App\Filament\Resources\Holidays\HolidayResource;
 use App\Filament\Resources\JobTitles\JobTitleResource;
 use App\Filament\Resources\LeaveRequests\LeaveRequestResource;
-use App\Filament\Resources\PresencePings\PresencePingResource;
 use App\Filament\Widgets\AbsenteesWidget;
 use App\Filament\Widgets\AttendanceStatsWidget;
 use App\Filament\Widgets\LateArrivalsWidget;
@@ -31,8 +30,8 @@ use Filament\PanelProvider;
 /**
  * The administration panel at /admin: employees and the job titles they may
  * be given, attendance records, the audit trail of rejected attempts, the
- * presence pings recorded during open sessions, the two request queues, and
- * the company location settings.
+ * two request queues, the monthly report, and the company location, working
+ * day and holiday settings.
  *
  * Resources and pages are listed explicitly rather than discovered, so
  * nothing can land on a panel by being in the wrong directory.
@@ -94,7 +93,6 @@ final class AdminPanelProvider extends PanelProvider
                     JobTitleResource::class,
                     AttendanceResource::class,
                     AttendanceRejectionResource::class,
-                    PresencePingResource::class,
                     AttendanceCorrectionResource::class,
                     LeaveRequestResource::class,
                     AttendanceSettingResource::class,

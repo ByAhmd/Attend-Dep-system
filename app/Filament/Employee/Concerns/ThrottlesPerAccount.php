@@ -20,9 +20,8 @@ use Filament\Facades\Filament;
  * costs nobody else anything.
  *
  * Each caller passes its own method name, so every action gets its own
- * bucket: a day of presence pings never spends the check-in allowance, and a
- * flood of correction requests never locks anybody out of the two buttons
- * this product exists for.
+ * bucket: a flood of correction requests never locks anybody out of the two
+ * buttons this product exists for.
  */
 trait ThrottlesPerAccount
 {

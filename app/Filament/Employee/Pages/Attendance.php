@@ -20,7 +20,6 @@ use App\Models\User;
 use App\Services\Attendance\AttendanceCalendar;
 use App\Services\Attendance\AttendanceDaySummary;
 use App\Services\Attendance\AttendanceWorkflow;
-use App\Services\Attendance\PresencePingRecorder;
 use App\Services\Geolocation\LocationReadingValidator;
 use App\Support\Attendance\SessionDuration;
 use App\Support\Geo\Meters;
@@ -60,18 +59,6 @@ final class Attendance extends Page implements ThrottlesRequests
     use BuildsQuickActionTiles;
     use ThrottlesPerAccount;
 
-    /**
-     * The presence-ping throttle: attempts, and the window they are counted
-     * in. Generous on purpose and separate from the check-in allowance -
-     * the page pings once per configured interval (five minutes by
-     * default), so twenty in five minutes leaves room for reloads, a second
-     * tab and a retry after a lost connection, while a script posting every
-     * second is refused within twenty of them.
-     */
-    private const int PING_ATTEMPTS = 20;
-
-    private const int PING_WINDOW_SECONDS = 300;
-
     protected static ?string $slug = 'attendance';
 
     protected static bool $shouldRegisterNavigation = false;
@@ -81,17 +68,6 @@ final class Attendance extends Page implements ThrottlesRequests
     public ?string $feedbackMessage = null;
 
     public string $feedbackStatus = 'info';
-
-    /**
-     * Whether a session is open right now, published to the browser so the
-     * ping loop knows when to run and when to stop.
-     *
-     * A synchronised property rather than an event: Livewire snapshots the
-     * component after every render, so the browser learns that a session
-     * opened or closed on the same round trip that changed it, and the two
-     * features stay independent of each other.
-     */
-    public bool $sessionIsOpen = false;
 
     /**
      * Whether a check-out pressed right now would need a reason first,
@@ -156,39 +132,6 @@ final class Attendance extends Page implements ThrottlesRequests
         $this->attempt(AttendanceAction::CheckOut, $reading, EarlyCheckOutDraft::fromPayload($earlyCheckOut));
     }
 
-    /**
-     * One presence ping: where the device says it is, while a session is
-     * open.
-     *
-     * Silent by design. A ping is a supporting observation the employee did
-     * not ask for, so nothing it does - being throttled, arriving malformed,
-     * or finding no open session to belong to - may put a message on the
-     * screen, disable a button or stand between the employee and the two
-     * that matter. It records what it can and says nothing.
-     *
-     * The throttle is its own bucket (the key is built from the method
-     * name), so a day of pings never spends the check-in allowance and a
-     * flood of pings never locks an employee out of checking in.
-     *
-     * @param  array<string, mixed>  $reading
-     */
-    public function ping(array $reading): void
-    {
-        try {
-            $this->rateLimit(self::PING_ATTEMPTS, decaySeconds: self::PING_WINDOW_SECONDS, method: 'ping');
-        } catch (TooManyRequestsException) {
-            return;
-        }
-
-        try {
-            $location = app(LocationReadingValidator::class)->validate($reading);
-        } catch (ValidationException) {
-            return;
-        }
-
-        app(PresencePingRecorder::class)->record($this->employee(), $location);
-    }
-
     public function requestCorrectionAction(): Action
     {
         return RequestCorrectionAction::make($this->employee());
@@ -235,11 +178,6 @@ final class Attendance extends Page implements ThrottlesRequests
         $status = $day->latestSession()?->status();
         $state = $status instanceof AttendanceStatus ? $status->value : 'not_checked_in';
 
-        // The one query that produced the day also decides whether the
-        // browser should be pinging, so the buttons and the ping loop can
-        // never disagree about whether a session is open.
-        $this->sessionIsOpen = $day->isCheckedIn();
-
         // Coming back after a check-out is the point of the feature; only a
         // session still open stands in the way of a check-in.
         $canCheckIn = $settings->isConfigured() && ! $day->isCheckedIn();
@@ -265,8 +203,6 @@ final class Attendance extends Page implements ThrottlesRequests
             'canCheckIn' => $canCheckIn,
             'canCheckOut' => $canCheckOut,
             'actions' => $this->actionButtons($canCheckIn, $canCheckOut),
-            // Milliseconds, because that is what the browser's timers take.
-            'pingIntervalMs' => ((int) config('attendance.ping_interval_seconds')) * 1000,
             'tiles' => $this->attendanceScreenTiles($employee),
         ];
     }
