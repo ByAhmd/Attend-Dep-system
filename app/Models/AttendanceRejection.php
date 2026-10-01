@@ -19,18 +19,23 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * check in?" for support and "who keeps trying from across town?" for
  * security. Append-only - rows are never updated, so there is no updated_at.
  *
+ * The POSITION of a refused attempt is deliberately not here. A refused
+ * check-in is a moment the person stood somewhere this product has no
+ * business recording - most often their home - so the row keeps the whole
+ * diagnosis and none of the address: the reason, the accuracy, and the
+ * distance from the company. The distance is a measurement about the
+ * line, not a place; a map pin cannot be rebuilt from it.
+ *
  * @property int $id
  * @property int $user_id
  * @property AttendanceAction $action
- * @property string $latitude
- * @property string $longitude
  * @property string $accuracy
  * @property ?string $distance_from_company
  * @property AttendanceRejectionReason $reason
  * @property CarbonImmutable $created_at
  * @property-read User $user
  */
-#[Fillable(['user_id', 'action', 'latitude', 'longitude', 'accuracy', 'distance_from_company', 'reason'])]
+#[Fillable(['user_id', 'action', 'accuracy', 'distance_from_company', 'reason'])]
 final class AttendanceRejection extends Model
 {
     public const null UPDATED_AT = null;
@@ -42,8 +47,6 @@ final class AttendanceRejection extends Model
     {
         return [
             'action' => AttendanceAction::class,
-            'latitude' => 'decimal:7',
-            'longitude' => 'decimal:7',
             'accuracy' => 'decimal:2',
             'distance_from_company' => 'decimal:2',
             'reason' => AttendanceRejectionReason::class,

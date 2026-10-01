@@ -6,13 +6,9 @@ namespace App\Filament\Resources\AttendanceRejections\Tables;
 
 use App\Enums\AttendanceAction;
 use App\Enums\AttendanceRejectionReason;
-use App\Models\AttendanceRejection;
 use App\Models\User;
-use App\Support\Geo\Coordinates;
-use App\Support\Geo\GoogleMapsLink;
 use App\Support\Geo\Meters;
 use BackedEnum;
-use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Support\Enums\FontFamily;
 use Filament\Support\Enums\FontWeight;
@@ -40,6 +36,10 @@ use Illuminate\Database\Eloquent\Builder;
  * suburb. The timestamp beside them is nothing but digits and is
  * monospaced outright; the two quantities are not, because their unit is
  * an Arabic letter and no monospaced stack has one to draw.
+ *
+ * There is no map link and no position on this screen, because the row
+ * keeps none: where a refused attempt stood is usually somebody's home,
+ * and the audit holds the diagnosis, never the address.
  */
 final class AttendanceRejectionsTable
 {
@@ -143,18 +143,8 @@ final class AttendanceRejectionsTable
                             fn (Builder $nested): Builder => $nested->whereDate('created_at', '<=', $data['until']),
                         )),
             ])
-            ->recordActions([
-                Action::make('openMap')
-                    ->label(__('rejections.actions.open_map'))
-                    ->icon(Heroicon::OutlinedMap)
-                    ->color('gray')
-                    ->url(fn (AttendanceRejection $record): string => GoogleMapsLink::to(
-                        new Coordinates((float) $record->latitude, (float) $record->longitude),
-                    ))
-                    ->openUrlInNewTab(),
-            ])
             ->paginated([25, 50, 100])
-            // Six columns and the map button do not fit a phone. Below the
+            // Six columns do not fit a phone. Below the
             // sm breakpoint each refused attempt becomes a labelled card,
             // which is also the only way the reason and the distance that
             // explains it stay side by side at that width.

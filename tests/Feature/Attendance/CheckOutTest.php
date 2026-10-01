@@ -138,10 +138,11 @@ final class CheckOutTest extends TestCase
 
         $this->assertSame($this->employee->id, $audit->user_id);
         $this->assertSame(AttendanceAction::CheckOut, $audit->action);
-        $this->assertEqualsWithDelta($reading->coordinates->latitude, (float) $audit->latitude, 1e-7);
         $this->assertSame('11.00', $audit->accuracy);
         $this->assertSame('320.00', $audit->distance_from_company);
         $this->assertSame(AttendanceRejectionReason::OutsideAllowedArea, $audit->reason);
+        // The position itself is deliberately not stored anywhere.
+        $this->assertArrayNotHasKey('latitude', $audit->getAttributes());
     }
 
     #[Test]

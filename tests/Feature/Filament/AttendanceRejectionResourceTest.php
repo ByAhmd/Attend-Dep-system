@@ -121,20 +121,33 @@ final class AttendanceRejectionResourceTest extends TestCase
             ->assertCanSeeTableRecords([$checkIn]);
     }
 
+    /**
+     * The screen that replaced the map link. Where a refused attempt stood
+     * is usually somebody's home; the audit stores no position, so this
+     * list has no map to open and no coordinates anywhere in its markup.
+     */
     #[Test]
-    public function the_map_link_opens_the_refused_position(): void
+    public function the_list_offers_no_map_and_prints_no_position(): void
     {
         $sara = $this->makeEmployee();
 
-        $rejection = $this->rejectedCheckIn($sara, $this->readingMetersFromCompany(500));
+        $reading = $this->readingMetersFromCompany(500);
+        $rejection = $this->rejectedCheckIn($sara, $reading);
 
-        Livewire::test(ListAttendanceRejections::class)
-            ->assertTableActionHasUrl(
-                'openMap',
-                "https://www.google.com/maps?q={$rejection->latitude},{$rejection->longitude}",
-                $rejection,
-            )
-            ->assertTableActionShouldOpenUrlInNewTab('openMap', $rejection);
+        $component = Livewire::test(ListAttendanceRejections::class);
+
+        $component
+            ->assertOk()
+            ->assertCanSeeTableRecords([$rejection])
+            ->assertDontSee('google.com/maps');
+
+        $html = $component->html();
+
+        $this->assertStringNotContainsString(
+            number_format($reading->coordinates->latitude, 7),
+            $html,
+            'A refused attempt\'s latitude reached the screen.',
+        );
     }
 
     #[Test]

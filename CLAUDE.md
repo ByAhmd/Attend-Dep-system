@@ -202,14 +202,19 @@ The Filament layer validates input (`LocationReadingValidator`), calls
   was removed entirely at the owner's decision, table included: it collected an
   employee's position every five minutes while being forbidden by its own rules from
   proving anything, and that trade of privacy for non-evidence was wrong. The two
-  geofenced moments - check-in and check-out - are the only location this product
-  records, and that is a promise to the people being measured, not a gap.
+  geofenced moments - a check-in and a check-out that SUCCEEDED, which by
+  definition stood at the company - are the only location this product records,
+  and that is a promise to the people being measured, not a gap.
 - Employees set their own password through an invitation. A new account is **Pending**
   with a NULL password until its owner follows the link; Pending cannot sign in.
 - The browser sends **only latitude, longitude, accuracy**. The server computes the
   distance, stamps the time, and stores what it saw. Client distance is feedback only.
 - Rejections for `insufficient_accuracy` / `outside_allowed_area` are recorded in
-  `attendance_rejections` (audit); state-rule rejections are not.
+  `attendance_rejections` (audit); state-rule rejections are not. The audit keeps
+  **the diagnosis and never the address**: reason, accuracy and distance from the
+  company, with no coordinate columns at all — a refused attempt stood somewhere
+  this product has no business recording, most often the person's home, and no
+  screen, row or future code path can put a map pin on it.
 - Accounts are deactivated, never deleted. Attendance rows are never deleted, and no
   interface edits one: `AttendancePolicy` refuses create, update and delete to
   everybody, there is no attendance form, and `AttendanceResource` registers one page.

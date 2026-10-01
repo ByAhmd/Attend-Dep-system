@@ -269,11 +269,15 @@ final class CheckInTest extends TestCase
 
         $this->assertSame($this->employee->id, $audit->user_id);
         $this->assertSame(AttendanceAction::CheckIn, $audit->action);
-        $this->assertEqualsWithDelta($reading->coordinates->latitude, (float) $audit->latitude, 1e-7);
-        $this->assertEqualsWithDelta($reading->coordinates->longitude, (float) $audit->longitude, 1e-7);
         $this->assertSame('7.50', $audit->accuracy);
         $this->assertSame('500.00', $audit->distance_from_company);
         $this->assertSame(AttendanceRejectionReason::OutsideAllowedArea, $audit->reason);
+
+        // The diagnosis and nothing else: where the refused attempt stood
+        // is usually somebody's home, and the audit must not be able to
+        // say it - the schema has no columns to hold it in.
+        $this->assertArrayNotHasKey('latitude', $audit->getAttributes());
+        $this->assertArrayNotHasKey('longitude', $audit->getAttributes());
     }
 
     #[Test]

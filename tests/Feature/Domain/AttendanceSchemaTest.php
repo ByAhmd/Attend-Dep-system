@@ -15,6 +15,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Concerns\CreatesAttendanceFixtures;
@@ -182,6 +183,21 @@ final class AttendanceSchemaTest extends TestCase
         $this->assertDatabaseCount('attendances', 1);
     }
 
+    /**
+     * The audit of refused attempts has no columns for a position, so no
+     * code path, present or future, can store where a refused attempt
+     * stood - which is usually somebody's home. The diagnosis columns
+     * (accuracy, distance) remain; the address never existed to leak.
+     */
+    #[Test]
+    public function the_rejection_audit_cannot_hold_a_position(): void
+    {
+        $this->assertFalse(Schema::hasColumn('attendance_rejections', 'latitude'));
+        $this->assertFalse(Schema::hasColumn('attendance_rejections', 'longitude'));
+        $this->assertTrue(Schema::hasColumn('attendance_rejections', 'accuracy'));
+        $this->assertTrue(Schema::hasColumn('attendance_rejections', 'distance_from_company'));
+    }
+
     #[Test]
     public function an_account_with_only_rejected_attempts_takes_them_with_it(): void
     {
@@ -190,8 +206,6 @@ final class AttendanceSchemaTest extends TestCase
         AttendanceRejection::query()->create([
             'user_id' => $employee->id,
             'action' => AttendanceAction::CheckIn,
-            'latitude' => 24.7336,
-            'longitude' => 46.6753,
             'accuracy' => 15.0,
             'distance_from_company' => 2223.9,
             'reason' => AttendanceRejectionReason::OutsideAllowedArea,

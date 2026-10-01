@@ -137,8 +137,6 @@ final class AccountDeletionTest extends TestCase
         $rejection = AttendanceRejection::query()->create([
             'user_id' => $employee->id,
             'action' => 'check_in',
-            'latitude' => 24.7336,
-            'longitude' => 46.6753,
             'accuracy' => 15.0,
             'distance_from_company' => 2223.9,
             'reason' => 'outside_allowed_area',

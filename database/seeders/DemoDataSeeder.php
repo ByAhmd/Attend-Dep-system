@@ -157,8 +157,6 @@ final class DemoDataSeeder extends Seeder
         AttendanceRejection::query()->forceCreate([
             'user_id' => $employee->id,
             'action' => AttendanceAction::CheckIn,
-            'latitude' => AttendanceFactory::COMPANY_LATITUDE + 0.02,
-            'longitude' => AttendanceFactory::COMPANY_LONGITUDE,
             'accuracy' => 15.0,
             'distance_from_company' => 2223.9,
             'reason' => AttendanceRejectionReason::OutsideAllowedArea,
@@ -168,8 +166,6 @@ final class DemoDataSeeder extends Seeder
         AttendanceRejection::query()->forceCreate([
             'user_id' => $employee->id,
             'action' => AttendanceAction::CheckIn,
-            'latitude' => AttendanceFactory::COMPANY_LATITUDE,
-            'longitude' => AttendanceFactory::COMPANY_LONGITUDE,
             'accuracy' => 650.0,
             'distance_from_company' => 0.0,
             'reason' => AttendanceRejectionReason::InsufficientAccuracy,

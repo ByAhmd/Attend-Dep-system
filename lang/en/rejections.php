@@ -27,10 +27,6 @@ return [
         'until' => 'Until',
     ],
 
-    'actions' => [
-        'open_map' => 'Open in map',
-    ],
-
     'empty' => [
         'heading' => 'No rejected attempts',
         'description' => 'Check-ins and check-outs refused because of location will be listed here.',

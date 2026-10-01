@@ -235,11 +235,14 @@ final readonly class AttendanceWorkflow
             return;
         }
 
+        // The reading's coordinates are deliberately NOT written. A refused
+        // attempt stood somewhere this product has no business keeping -
+        // usually the person's home - so the audit records the diagnosis
+        // (reason, accuracy, distance from the line) and lets the position
+        // itself vanish with the request that carried it.
         AttendanceRejection::query()->create([
             'user_id' => $user->id,
             'action' => $action,
-            'latitude' => $reading->coordinates->latitude,
-            'longitude' => $reading->coordinates->longitude,
             'accuracy' => round($reading->accuracyMeters, 2),
             'distance_from_company' => $rejection->verification?->roundedDistance(),
             'reason' => $rejection->reason,
