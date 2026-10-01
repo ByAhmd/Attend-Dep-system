@@ -6,20 +6,24 @@ namespace App\Providers\Filament;
 
 use App\Enums\NavigationGroup;
 use App\Filament\Pages\Dashboard;
+use App\Filament\Pages\MonthlyReport;
 use App\Filament\Resources\AttendanceCorrections\AttendanceCorrectionResource;
 use App\Filament\Resources\AttendanceRejections\AttendanceRejectionResource;
 use App\Filament\Resources\Attendances\AttendanceResource;
 use App\Filament\Resources\AttendanceSettings\AttendanceSettingResource;
 use App\Filament\Resources\Employees\EmployeeResource;
+use App\Filament\Resources\Holidays\HolidayResource;
 use App\Filament\Resources\JobTitles\JobTitleResource;
 use App\Filament\Resources\LeaveRequests\LeaveRequestResource;
 use App\Filament\Resources\PresencePings\PresencePingResource;
+use App\Filament\Widgets\AbsenteesWidget;
 use App\Filament\Widgets\AttendanceStatsWidget;
 use App\Filament\Widgets\LateArrivalsWidget;
 use App\Filament\Widgets\RequestsQueueWidget;
 use App\Providers\Filament\Concerns\ConfiguresPanel;
 use App\Support\Filament\PanelAccess;
 use App\Support\Filament\PanelSwitchMenuItems;
+use Filament\Auth\MultiFactor\App\AppAuthentication;
 use Filament\Navigation\NavigationGroup as FilamentNavigationGroup;
 use Filament\Panel;
 use Filament\PanelProvider;
@@ -44,6 +48,20 @@ final class AdminPanelProvider extends PanelProvider
                 ->id(PanelAccess::ADMIN_PANEL_ID)
                 ->path('admin')
                 ->login()
+                // An authenticator app, required: an administrator's
+                // password opens every record in the company, so a first
+                // visit to this panel walks them through enrolment and
+                // every later sign-in asks for the code. Recovery codes
+                // cover a lost phone. Required per request through config,
+                // so the suite can run the panel without enrolling six
+                // hundred test administrators; production never turns it
+                // off. Everyone in this panel is an administrator - the
+                // panel itself guarantees that - so the requirement needs
+                // no role check of its own.
+                ->multiFactorAuthentication(
+                    AppAuthentication::make()->recoverable(),
+                    isRequired: fn (): bool => (bool) config('attendance.require_admin_mfa'),
+                )
                 // An administrator is staff too and checks in like everyone
                 // else; this is the only link there is to the screen they do
                 // it on.
@@ -80,13 +98,16 @@ final class AdminPanelProvider extends PanelProvider
                     AttendanceCorrectionResource::class,
                     LeaveRequestResource::class,
                     AttendanceSettingResource::class,
+                    HolidayResource::class,
                 ])
                 ->pages([
                     Dashboard::class,
+                    MonthlyReport::class,
                 ])
                 ->widgets([
                     RequestsQueueWidget::class,
                     AttendanceStatsWidget::class,
+                    AbsenteesWidget::class,
                     LateArrivalsWidget::class,
                 ]),
         );

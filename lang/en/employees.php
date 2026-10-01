@@ -25,6 +25,7 @@ return [
         'job_title' => 'Job title',
         'created_at' => 'Created',
         'invitation_link' => 'Invitation link',
+        'annual_leave_override' => 'Annual leave (working days per year)',
     ],
 
     'placeholders' => [
@@ -39,6 +40,7 @@ return [
     ],
 
     'helpers' => [
+        'annual_leave_override' => 'Leave empty to use the company allowance from the attendance settings. A number here applies to this account only.',
         'password' => 'At least 8 characters. Share it with the employee; only an administrator can reset it.',
         'status' => 'Inactive employees cannot sign in or record attendance. Their history is kept.',
         'role' => 'Administrators manage employees and settings; employees only check in and out.',
@@ -60,6 +62,7 @@ return [
 
     'validation' => [
         'email_unique' => 'This email is already in use. If that account was deleted, restore it from "Deleted accounts" instead of creating a second one.',
+        'annual_leave_override' => 'The allowance must be a whole number of days between 0 and 365.',
     ],
 
     'filters' => [

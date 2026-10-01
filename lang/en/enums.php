@@ -36,6 +36,16 @@ return [
         'early_check_out_reason_required' => 'Early check-out without a reason',
     ],
 
+    'weekday' => [
+        'sunday' => 'Sunday',
+        'monday' => 'Monday',
+        'tuesday' => 'Tuesday',
+        'wednesday' => 'Wednesday',
+        'thursday' => 'Thursday',
+        'friday' => 'Friday',
+        'saturday' => 'Saturday',
+    ],
+
     'early_check_out_reason' => [
         'sick' => 'Feeling unwell',
         'personal_errand' => 'Personal errand',

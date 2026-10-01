@@ -11,6 +11,8 @@ use App\Models\Scopes\AccountSoftDeletingScope;
 use App\Support\Filament\PanelAccess;
 use Carbon\CarbonInterface;
 use Database\Factories\UserFactory;
+use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthentication;
+use Filament\Auth\MultiFactor\App\Contracts\HasAppAuthenticationRecovery;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -23,6 +25,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Str;
+use SensitiveParameter;
 
 /**
  * An account - an administrator or an employee.
@@ -45,14 +48,17 @@ use Illuminate\Support\Str;
  * @property UserStatus $status
  * @property EmploymentType $employment_type
  * @property ?int $job_title_id
+ * @property ?int $annual_leave_override
+ * @property ?string $app_authentication_secret
+ * @property ?array<int, string> $app_authentication_recovery_codes
  * @property CarbonInterface|null $deleted_at
  * @property-read ?JobTitle $jobTitle
  * @property-read Collection<int, AttendanceCorrection> $attendanceCorrections
  * @property-read Collection<int, LeaveRequest> $leaveRequests
  */
-#[Fillable(['name', 'email', 'password', 'role', 'status', 'employment_type', 'job_title_id'])]
-#[Hidden(['password', 'remember_token'])]
-final class User extends Authenticatable implements FilamentUser
+#[Fillable(['name', 'email', 'password', 'role', 'status', 'employment_type', 'job_title_id', 'annual_leave_override'])]
+#[Hidden(['password', 'remember_token', 'app_authentication_secret', 'app_authentication_recovery_codes'])]
+final class User extends Authenticatable implements FilamentUser, HasAppAuthentication, HasAppAuthenticationRecovery
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory;
@@ -103,7 +109,47 @@ final class User extends Authenticatable implements FilamentUser
             'role' => UserRole::class,
             'status' => UserStatus::class,
             'employment_type' => EmploymentType::class,
+            'app_authentication_secret' => 'encrypted',
+            'app_authentication_recovery_codes' => 'encrypted:array',
         ];
+    }
+
+    /**
+     * The authenticator-app contract, Filament's four verbs and the name a
+     * TOTP app files the account under. Outside #[Fillable] and written
+     * through forceFill() only: no payload anywhere may plant a secret it
+     * knows onto an account it wants into, and Filament's own enrolment
+     * and recovery flows are the only callers.
+     */
+    public function getAppAuthenticationSecret(): ?string
+    {
+        return $this->app_authentication_secret;
+    }
+
+    public function saveAppAuthenticationSecret(#[SensitiveParameter] ?string $secret): void
+    {
+        $this->forceFill(['app_authentication_secret' => $secret])->save();
+    }
+
+    public function getAppAuthenticationHolderName(): string
+    {
+        return $this->email;
+    }
+
+    /**
+     * @return ?array<string>
+     */
+    public function getAppAuthenticationRecoveryCodes(): ?array
+    {
+        return $this->app_authentication_recovery_codes;
+    }
+
+    /**
+     * @param  ?array<string>  $codes
+     */
+    public function saveAppAuthenticationRecoveryCodes(#[SensitiveParameter] ?array $codes): void
+    {
+        $this->forceFill(['app_authentication_recovery_codes' => $codes])->save();
     }
 
     /**

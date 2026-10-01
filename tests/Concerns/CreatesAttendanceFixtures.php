@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Tests\Concerns;
 
 use App\Enums\LeaveType;
+use App\Enums\RequestStatus;
 use App\Enums\UserStatus;
 use App\Models\Attendance;
 use App\Models\AttendanceCorrection;
 use App\Models\AttendanceSetting;
+use App\Models\Holiday;
 use App\Models\JobTitle;
 use App\Models\LeaveRequest;
 use App\Models\User;
@@ -259,6 +261,22 @@ trait CreatesAttendanceFixtures
     }
 
     /**
+     * Approves a leave request the way the workflow leaves one: status,
+     * decider and moment together, because the table's decision-complete
+     * CHECK refuses an approval with no account of who approved it.
+     */
+    protected function approveLeave(LeaveRequest $request, ?User $decidedBy = null): LeaveRequest
+    {
+        $request->forceFill([
+            'status' => RequestStatus::Approved,
+            'decided_by_id' => ($decidedBy ?? $this->makeAdmin())->id,
+            'decided_at' => app(AttendanceCalendar::class)->now(),
+        ])->save();
+
+        return $request;
+    }
+
+    /**
      * How many corrections an employee may ask for this month. Zero
      * switches correction requests off altogether.
      */
@@ -292,5 +310,34 @@ trait CreatesAttendanceFixtures
         ])->save();
 
         return $settings;
+    }
+
+    /**
+     * Which days of the week nobody is expected.
+     *
+     * @param  list<string>  $days  lowercase English day names
+     */
+    protected function configureWeekend(array $days): AttendanceSetting
+    {
+        $settings = AttendanceSetting::current();
+
+        $settings->forceFill(['weekend_days' => $days])->save();
+
+        return $settings;
+    }
+
+    /**
+     * An official holiday covering the inclusive range (one day when only
+     * one date is given), with names a test can assert against.
+     */
+    protected function makeHoliday(
+        CarbonInterface $from,
+        ?CarbonInterface $until = null,
+        string $ar = 'اليوم الوطني',
+        string $en = 'National Day',
+    ): Holiday {
+        return Holiday::factory()
+            ->between($from, $until)
+            ->create(['name_ar' => $ar, 'name_en' => $en]);
     }
 }

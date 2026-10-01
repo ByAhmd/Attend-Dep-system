@@ -64,6 +64,14 @@
         <env name="QUEUE_CONNECTION" value="sync"/>
         <env name="SESSION_DRIVER" value="array"/>
         <env name="ATTENDANCE_MAX_ACCURACY_METERS" value="100"/>
+        <!--
+          Off for the suite as a whole: with the requirement on, every
+          admin-panel test would be redirected to the authenticator set-up
+          page instead of the screen it is about. Production defaults the
+          other way, and the tests that cover the requirement itself turn
+          it back on with config().
+        -->
+        <env name="ATTENDANCE_REQUIRE_ADMIN_MFA" value="false"/>
         <env name="PULSE_ENABLED" value="false"/>
         <env name="TELESCOPE_ENABLED" value="false"/>
         <env name="NIGHTWATCH_ENABLED" value="false"/>

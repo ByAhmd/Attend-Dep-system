@@ -160,6 +160,21 @@ final class LeaveRequest extends Model
     }
 
     /**
+     * Requests touching any day of the given inclusive range - the same
+     * overlap a holiday answers, so a month is read with one query and the
+     * per-day questions are asked of the loaded rows.
+     *
+     * @param  Builder<self>  $query
+     * @return Builder<self>
+     */
+    public function scopeOverlappingRange(Builder $query, CarbonInterface $from, CarbonInterface $until): Builder
+    {
+        return $query
+            ->where('starts_on', '<=', $until->toDateString())
+            ->where('ends_on', '>=', $from->toDateString());
+    }
+
+    /**
      * Calendar days covered, both ends included, derived in PHP from two
      * dates already loaded - never a per-row DATEDIFF.
      */

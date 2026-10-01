@@ -6,10 +6,13 @@ namespace App\Filament\Employee\Schemas;
 
 use App\Enums\LeaveType;
 use App\Models\LeaveRequest;
+use App\Models\User;
 use App\Services\Attendance\AttendanceCalendar;
 use App\Services\Leave\LeaveAttachmentStore;
+use App\Services\Leave\LeaveBalance;
 use Carbon\CarbonImmutable;
 use Closure;
+use Filament\Facades\Filament;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Placeholder;
@@ -61,7 +64,30 @@ final class LeaveRequestForm
                     ->options(LeaveType::options())
                     ->native(false)
                     ->required()
+                    // Live so the balance line below appears the moment
+                    // annual leave is chosen and leaves with it.
+                    ->live()
                     ->validationMessages(['required' => __('leave.validation.type_required')]),
+
+                // The figure the employee should see before asking for
+                // annual leave: what is left of this year's allowance,
+                // counted in working days. Informational by design - the
+                // helper says so - because the balance informs the person
+                // deciding, it never refuses a request by itself.
+                Placeholder::make('annual_balance')
+                    ->label(__('leave.balance.remaining'))
+                    ->helperText(__('leave.balance.informational'))
+                    ->visible(fn (Get $get): bool => $get('type') === LeaveType::Annual->value
+                        && ! (bool) $get('is_exit_and_return'))
+                    ->content(function (): string {
+                        $employee = Filament::auth()->user();
+
+                        if (! $employee instanceof User) {
+                            return __('attendance.page.not_recorded');
+                        }
+
+                        return self::balanceSentence(app(LeaveBalance::class)->remainingFor($employee));
+                    }),
 
                 DatePicker::make('starts_on')
                     ->label(__('leave.fields.starts_on'))
@@ -163,6 +189,18 @@ final class LeaveRequestForm
                         'max' => __('leave.validation.attachment_size', ['size' => self::megabytes()]),
                     ]),
             ]);
+    }
+
+    /**
+     * The balance as one sentence: the remaining working days, or - once
+     * more was approved than the year held - by how much it is exceeded,
+     * because "-3 working days" is arithmetic and not a sentence.
+     */
+    public static function balanceSentence(int $remaining): string
+    {
+        return $remaining >= 0
+            ? trans_choice('leave.units.working_days', $remaining)
+            : __('leave.balance.exceeded', ['days' => trans_choice('leave.units.working_days', abs($remaining))]);
     }
 
     /**

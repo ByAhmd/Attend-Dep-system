@@ -7,6 +7,7 @@ namespace App\Filament\Pages;
 use App\Filament\Resources\Attendances\AttendanceResource;
 use App\Filament\Resources\AttendanceSettings\AttendanceSettingResource;
 use App\Filament\Resources\Employees\EmployeeResource;
+use App\Filament\Widgets\AbsenteesWidget;
 use App\Filament\Widgets\AttendanceStatsWidget;
 use App\Filament\Widgets\LateArrivalsWidget;
 use App\Filament\Widgets\RequestsQueueWidget;
@@ -69,11 +70,13 @@ final class Dashboard extends BaseDashboard
     {
         return [
             // The queues come first: they are the only thing on this page
-            // that asks the reader to do something today. The late list
-            // comes last - it is a report on a morning already over, and
-            // asks the reader for nothing.
+            // that asks the reader to do something today. Then the day's
+            // figures, then the two morning reports - the missing before
+            // the late, because somebody absent outranks somebody who
+            // arrived at 09:45 - and neither asks the reader for anything.
             RequestsQueueWidget::class,
             AttendanceStatsWidget::class,
+            AbsenteesWidget::class,
             LateArrivalsWidget::class,
         ];
     }

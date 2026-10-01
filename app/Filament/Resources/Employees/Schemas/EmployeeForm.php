@@ -8,6 +8,7 @@ use App\Enums\EmploymentType;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
 use App\Filament\Resources\Employees\EmployeeResource;
+use App\Models\AttendanceSetting;
 use App\Models\JobTitle;
 use App\Models\User;
 use Filament\Forms\Components\Select;
@@ -104,6 +105,28 @@ final class EmployeeForm
                                     ->preload()
                                     ->placeholder(__('employees.placeholders.job_title'))
                                     ->helperText(__('employees.helpers.job_title')),
+
+                                // A description of this person's contract,
+                                // not a permission - which is why it sits in
+                                // details with the title and the type. Empty
+                                // means the company figure in the settings,
+                                // and the helper says so because an empty
+                                // number box otherwise reads as zero.
+                                TextInput::make('annual_leave_override')
+                                    ->label(__('employees.fields.annual_leave_override'))
+                                    ->placeholder(fn (): string => (string) AttendanceSetting::current()->annual_leave_days)
+                                    ->helperText(__('employees.helpers.annual_leave_override'))
+                                    ->numeric()
+                                    ->integer()
+                                    ->minValue((int) config('attendance.annual_leave_bounds.min'))
+                                    ->maxValue((int) config('attendance.annual_leave_bounds.max'))
+                                    ->dehydrateStateUsing(fn (mixed $state): ?int => is_numeric($state) ? (int) $state : null)
+                                    ->validationMessages([
+                                        'numeric' => __('employees.validation.annual_leave_override'),
+                                        'integer' => __('employees.validation.annual_leave_override'),
+                                        'min' => __('employees.validation.annual_leave_override'),
+                                        'max' => __('employees.validation.annual_leave_override'),
+                                    ]),
                             ]),
                     ])
                     ->columns(1),

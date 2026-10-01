@@ -134,4 +134,83 @@ return [
         'max' => 240,
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Default weekend
+    |--------------------------------------------------------------------------
+    |
+    | The days of the week nobody is expected at the company, as the value
+    | the settings row is created with; the live weekend is edited from the
+    | admin panel. Friday and Saturday, because that is the Saudi weekend.
+    | The absence list and the monthly report stay silent on these days.
+    |
+    */
+
+    'default_weekend_days' => ['friday', 'saturday'],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Default annual leave allowance
+    |--------------------------------------------------------------------------
+    |
+    | Working days of annual leave per Gregorian year, as the value the
+    | settings row is created with; the live figure is edited from the
+    | admin panel, and an employee's account may carry its own override.
+    | 21 working days is the Saudi labour law minimum. The balance informs
+    | the person deciding a request; it never refuses one by itself.
+    |
+    */
+
+    'default_annual_leave_days' => 21,
+
+    /*
+    |--------------------------------------------------------------------------
+    | Annual leave bounds
+    |--------------------------------------------------------------------------
+    |
+    | What the settings form and the employee override will accept. Zero is
+    | a real setting - no annual allowance at all - and a year has no more
+    | than 365 days to allow.
+    |
+    */
+
+    'annual_leave_bounds' => [
+        'min' => 0,
+        'max' => 365,
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Backups
+    |--------------------------------------------------------------------------
+    |
+    | `php artisan app:backup` dumps the database with the binary named
+    | here - a bare name found on PATH, or a full path on a host that
+    | hides its client tools - and keeps the newest `keep` sets under
+    | storage/app/backups. The command writes to the local disk only;
+    | copying a set off the server is deliberately left to a human or the
+    | host panel, because a backup beside its database shares its disk.
+    |
+    */
+
+    'backup' => [
+        'mysqldump' => env('BACKUP_MYSQLDUMP', 'mysqldump'),
+        'keep' => (int) env('BACKUP_KEEP', 14),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Require two-factor authentication for administrators
+    |--------------------------------------------------------------------------
+    |
+    | When true (the default, and what production runs), the admin panel
+    | walks an administrator without an authenticator app through enrolment
+    | and every sign-in asks for the code. The test suite switches it off
+    | in phpunit.xml so panel tests need no enrolled authenticator; the
+    | tests that cover the requirement turn it back on themselves.
+    |
+    */
+
+    'require_admin_mfa' => (bool) env('ATTENDANCE_REQUIRE_ADMIN_MFA', true),
+
 ];

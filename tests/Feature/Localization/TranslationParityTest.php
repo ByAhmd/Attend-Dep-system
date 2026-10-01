@@ -18,6 +18,7 @@ use App\Enums\NavigationGroup;
 use App\Enums\RequestStatus;
 use App\Enums\UserRole;
 use App\Enums\UserStatus;
+use App\Enums\Weekday;
 use Illuminate\Support\Facades\App;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
@@ -100,6 +101,7 @@ final class TranslationParityTest extends TestCase
                 CorrectionReason::class,
                 LeaveType::class,
                 EarlyCheckOutReason::class,
+                Weekday::class,
             ],
             $this->labelledEnums(),
         );

@@ -13,6 +13,7 @@ use App\Filament\Employee\Widgets\MyLeaveRequestsWidget;
 use App\Providers\Filament\Concerns\ConfiguresPanel;
 use App\Support\Filament\PanelAccess;
 use App\Support\Filament\PanelSwitchMenuItems;
+use Filament\Auth\MultiFactor\App\AppAuthentication;
 use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Enums\Width;
@@ -48,6 +49,14 @@ final class EmployeePanelProvider extends PanelProvider
                 // stock one refuses an account that cannot enter the panel,
                 // which is precisely an account still waiting to be invited.
                 ->passwordReset(resetAction: ResetPassword::class)
+                // The same authenticator-app provider as the admin panel,
+                // but nothing here ever REQUIRES enrolment: an employee is
+                // never offered the set-up and never challenged. It exists
+                // because administrators sign in at this door too - the
+                // panel switch above is proof - and an admin door that asks
+                // for a code is worthless beside an employee door that
+                // does not.
+                ->multiFactorAuthentication(AppAuthentication::make()->recoverable())
                 // The only way to /admin from here. An administrator who
                 // signs in at the site root lands on this screen, and
                 // without this entry the administration panel is reachable

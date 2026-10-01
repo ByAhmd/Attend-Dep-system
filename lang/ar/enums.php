@@ -36,6 +36,16 @@ return [
         'early_check_out_reason_required' => 'انصراف مبكّر بدون سبب',
     ],
 
+    'weekday' => [
+        'sunday' => 'الأحد',
+        'monday' => 'الاثنين',
+        'tuesday' => 'الثلاثاء',
+        'wednesday' => 'الأربعاء',
+        'thursday' => 'الخميس',
+        'friday' => 'الجمعة',
+        'saturday' => 'السبت',
+    ],
+
     'early_check_out_reason' => [
         'sick' => 'وعكة صحية',
         'personal_errand' => 'ظرف شخصي',

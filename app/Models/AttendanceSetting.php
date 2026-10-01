@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\Weekday;
 use App\Support\Attendance\WorkingHours;
 use App\Support\Geo\Coordinates;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\UniqueConstraintViolationException;
 
@@ -31,8 +33,10 @@ use Illuminate\Database\UniqueConstraintViolationException;
  * @property string $work_starts_at
  * @property string $work_ends_at
  * @property int $late_grace_minutes
+ * @property array<int, string> $weekend_days
+ * @property int $annual_leave_days
  */
-#[Fillable(['latitude', 'longitude', 'radius_meters', 'correction_requests_per_month', 'work_starts_at', 'work_ends_at', 'late_grace_minutes'])]
+#[Fillable(['latitude', 'longitude', 'radius_meters', 'correction_requests_per_month', 'work_starts_at', 'work_ends_at', 'late_grace_minutes', 'weekend_days', 'annual_leave_days'])]
 final class AttendanceSetting extends Model
 {
     public const int SINGLETON_ID = 1;
@@ -53,6 +57,7 @@ final class AttendanceSetting extends Model
             'radius_meters' => 'integer',
             'correction_requests_per_month' => 'integer',
             'late_grace_minutes' => 'integer',
+            'annual_leave_days' => 'integer',
         ];
     }
 
@@ -77,6 +82,8 @@ final class AttendanceSetting extends Model
                 'work_starts_at' => (string) config('attendance.default_work_starts_at'),
                 'work_ends_at' => (string) config('attendance.default_work_ends_at'),
                 'late_grace_minutes' => (int) config('attendance.default_late_grace_minutes'),
+                'weekend_days' => (array) config('attendance.default_weekend_days'),
+                'annual_leave_days' => (int) config('attendance.default_annual_leave_days'),
             ]);
         } catch (UniqueConstraintViolationException) {
             return self::query()->findOrFail(self::SINGLETON_ID);
@@ -95,6 +102,28 @@ final class AttendanceSetting extends Model
         }
 
         return new Coordinates((float) $this->latitude, (float) $this->longitude);
+    }
+
+    /**
+     * The weekend, read and written as a list of Weekday values.
+     *
+     * The column is a comma-separated list of lowercase day names; both
+     * directions pass through the enum, so a word the enum does not know
+     * never reaches a caller and never reaches the column - whatever a
+     * hand-edited row or payload held.
+     */
+    protected function weekendDays(): Attribute
+    {
+        return Attribute::make(
+            get: static fn (?string $value): array => array_values(array_filter(
+                array_map(trim(...), explode(',', (string) $value)),
+                static fn (string $day): bool => Weekday::tryFrom($day) instanceof Weekday,
+            )),
+            set: static fn (array|string $value): string => implode(',', array_values(array_unique(array_filter(
+                array_map(trim(...), is_array($value) ? $value : explode(',', $value)),
+                static fn (string $day): bool => Weekday::tryFrom($day) instanceof Weekday,
+            )))),
+        );
     }
 
     /**

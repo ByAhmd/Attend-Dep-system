@@ -17,13 +17,28 @@ being approved or rejected, for the one employee who filed it. Nothing else is e
 notified.
 
 The system knows one **official working day** (default 09:00–17:00, set in the
-attendance settings). It is used for exactly two things: the day's **first** check-in
-more than the grace period (default 30 min) after the start is marked **late** and
-listed on the admin dashboard with its lateness measured from the start of the day;
-and a check-out strictly before the end asks the employee to **choose a reason**
-(plus an optional note), which is stored on the session and shown to the
-administrator. That is all the working day does — it never blocks a check-in or a
-check-out, and a late arrival or early departure is reported, never punished.
+attendance settings) and one **working calendar**: the configured weekend (default
+Friday–Saturday) and a list of named official holidays. Together they are used for
+exactly these things, and nothing else:
+
+- the day's **first** check-in more than the grace period (default 30 min) after the
+  start is marked **late**, listed on the admin dashboard with its lateness measured
+  from the start of the day;
+- a check-out strictly before the end asks the employee to **choose a reason** (plus
+  an optional note), stored on the session and shown to the administrator;
+- the dashboard lists who **has not checked in** today — only on working days, only
+  active employees, and never anyone on approved leave — worded as the absence of a
+  record, never as "absent";
+- a **monthly report** (one admin page, with a CSV export) restates the month per
+  employee: days attended, time inside, late days, early check-outs, approved leave
+  days and unrecorded working days;
+- an **annual leave balance** (company allowance, default 21 working days, with a
+  per-account override) is shown where an annual-leave request is written and where
+  it is decided. It **informs and never refuses**: no request is blocked by it.
+
+The calendar says who was EXPECTED, never who may record: check-in and check-out work
+on any day of the year, a holiday blocks nothing, and a late arrival or early
+departure is reported, never punished.
 
 **That is the whole business scope.** No payroll; no shifts or per-employee
 schedules — one working day for the whole company, and no overtime or hour accrual
@@ -32,7 +47,8 @@ teams, and therefore no team leave; no biometric hardware and none of its vocabu
 no announcements feed, no messaging, no email and no push - the bell is a bell about
 requests and is not a channel anybody may broadcast on; no profile editing or avatars,
 and the one file anybody may upload is the document supporting a leave request; no
-reports beyond the attendance list; no API; no multi-company; no second allowed
+reports beyond the attendance list and the monthly summary above; no API; no
+multi-company; no second allowed
 location. Each of those absences is a decision, not an omission: Makani says only what
 it can prove, and a figure subtracted from a schedule nobody recorded is an accusation
 the system cannot support.
@@ -77,14 +93,14 @@ Two Filament panels, explicit registration (no directory discovery):
 | Panel | Path | Who | Contents |
 |---|---|---|---|
 | `employee` (default) | `/` (`/login`, `/`, `/requests`) | every active account | `App\Filament\Employee\Pages\Attendance` + history widget; `Pages\Requests` + the two request widgets; the bell |
-| `admin` | `/admin` | administrators | Employees, Job titles, Attendance records, Rejected attempts, Presence pings, Correction requests, Leave requests, Attendance settings, Dashboard; the bell |
+| `admin` | `/admin` | administrators | Employees, Job titles, Attendance records, Rejected attempts, Presence pings, Correction requests, Leave requests, Attendance settings, Official holidays, Dashboard, Monthly report; the bell |
 
 Layers, exactly as in the ZonKSA/StockFlow projects:
 
 ```
 app/Enums/                 UserRole, UserStatus, EmploymentType, AttendanceStatus,
                            AttendanceAction, AttendanceRejectionReason, RequestStatus,
-                           CorrectionReason, LeaveType, EarlyCheckOutReason,
+                           CorrectionReason, LeaveType, EarlyCheckOutReason, Weekday,
                            NavigationGroup — label() + options(); CorrectionRefusalReason and LeaveRefusalReason
                            carry message(), and RequestKind carries only icon(), so
                            the parity test's glob does not find any of the three and
@@ -101,7 +117,9 @@ app/Support/Attendance/    SessionDuration — hours and minutes, as Meters is f
                            grace), always asked with the day it is about
 app/Data/Attendance/       LocationVerification — the backend verdict on one reading;
                            CorrectionDraft — what the employee stated on the form;
-                           EarlyCheckOutDraft — the reason chosen for leaving early
+                           EarlyCheckOutDraft — the reason chosen for leaving early;
+                           MonthlyEmployeeSummary — one employee's month as the report
+                           prints it
 app/Data/Leave/            LeaveDraft
 app/Data/Requests/         RequestNotice — one line in somebody's bell, held as facts
                            rather than as a finished sentence
@@ -110,9 +128,14 @@ app/Services/Attendance/   AttendanceCalendar, LocationVerifier, AttendanceWorkf
                            AttendanceDashboardMetrics, AttendanceDaySummary (one
                            employee's day as its sessions), PresencePingRecorder,
                            CorrectionQuota, AttendanceCorrectionWorkflow,
-                           LateArrivals (today's late list, derived, never stored)
+                           LateArrivals (today's late list, derived, never stored),
+                           WorkingCalendar (weekend + holidays: who was expected),
+                           Absentees (expected today and unrecorded),
+                           MonthlyAttendanceSummary (the report's arithmetic)
 app/Services/Leave/        LeaveRequestWorkflow, LeaveConflicts, LeaveAttachmentStore
-                           (the supporting document: store, stream, discard)
+                           (the supporting document: store, stream, discard),
+                           LeaveBalance (annual allowance minus approved annual
+                           leave, in working days; informs, never refuses)
 app/Services/Requests/     RequestQueueMetrics, EmployeeRequestCounts,
                            RequestAudience — who counts as an administrator to notify
 app/Services/Users/        EmployeeInvitationService + Invitation (url, emailed)
@@ -129,7 +152,7 @@ app/Exceptions/Attendance/ AttendanceRejectedException (reason enum + verificati
 app/Exceptions/Leave/      LeaveRequestRefusedException
 app/Models/                User, JobTitle, Attendance (one SESSION), AttendanceRejection,
                            AttendanceCorrection, LeaveRequest, AttendanceSetting,
-                           PresencePing
+                           PresencePing, Holiday
 app/Policies/              one per model; employees never write attendance
 app/Http/Middleware/       EnsureAccountIsActive (signs out deactivated accounts),
                            SetLocale (applies the language cookie; persistent for Livewire)
@@ -137,7 +160,10 @@ app/Http/Controllers/      SwitchLocaleController — GET /locale/{ar|en};
                            LeaveAttachmentController — GET /leave-requests/{id}/attachment,
                            authorised by the leave request's own policy; the only two
                            web routes
-app/Console/Commands/      CreateAdminCommand (app:create-admin — the first administrator)
+app/Console/Commands/      CreateAdminCommand (app:create-admin — the first administrator);
+                           BackupCommand (app:backup — gzipped mysqldump + the leave
+                           attachments, rotated under storage/app/backups; run by the
+                           host panel's scheduler, copied off the server by a human)
 app/Filament/Auth/         ResetPassword — the stock page admits a Pending account so an
                            invitation can be accepted; Inactive is still refused
 app/Filament/Resources/    admin resources: <Name>Resource + Schemas/ + Tables/ + Pages/
@@ -279,6 +305,27 @@ The Filament layer validates input (`LocationReadingValidator`), calls
   columns honest: known values only, no note without a reason, no reason without a
   check-out. Corrections are untouched by the rule — an administrator amending a
   session neither needs a reason nor erases one.
+- The **working calendar** is the weekend day-set on the settings row plus the
+  `holidays` table (named inclusive ranges, full CRUD under System — the one other
+  thing beside job titles the owner edits freely, because a holiday is a decision
+  about the future, not evidence about the past). `WorkingCalendar` answers "was
+  anybody expected on this day"; it is consulted by the absence list, the monthly
+  report and the leave balance, and by **nothing** on the check-in path.
+- The dashboard's "have not checked in today" list is empty by construction on
+  non-working days (the empty state names the day), excludes approved leave but NOT
+  an approved exit-and-return, and covers active employee accounts only — the same
+  roster notion as the headcount. It states the absence of a record and nothing more.
+- The monthly report derives everything per request from the stored rows and the
+  current working day/calendar; nothing is stored, and "days unrecorded" counts only
+  elapsed working days with no session and no approved leave, attended winning over
+  leave when both are true of a day. The CSV is the same figures and nothing else.
+- The **annual leave balance** is derived like the correction quota: entitlement
+  (settings default or the account's `annual_leave_override`) minus working days of
+  APPROVED Annual-type leave in the current Gregorian year. Sick/exam/bereavement/
+  unpaid draw nothing; an exit-and-return draws nothing; weekends and holidays inside
+  a leave cost nothing. It may go negative and is then said out loud. It is printed
+  on the employee's leave form and beside a pending annual request for the approver —
+  and it never refuses a request.
 - Company coordinates, radius and the monthly correction allowance live only in
   `attendance_settings` (single row, `AttendanceSetting::current()`); the default radius
   150 and the default allowance 3 are in `config/attendance.php`.
@@ -318,3 +365,15 @@ The Filament layer validates input (`LocationReadingValidator`), calls
 - Mass assignment: `User` exposes role/status to the admin form only; employees never
   reach a form that writes to users or attendances.
 - Never trust the device clock, timezone, or any distance it computes.
+- **Administrators use two-factor authentication** (Filament's authenticator-app
+  provider, TOTP + recovery codes, columns encrypted at rest and outside
+  `#[Fillable]`). Required on the admin panel via `attendance.require_admin_mfa`
+  (default true; phpunit.xml switches it off for the suite, and Filament attaches the
+  requirement middleware at route registration, so flipping it needs a boot, not a
+  `config()` call). The employee panel carries the same provider unrequired, so an
+  enrolled administrator is challenged at either door while employees never see any
+  of it. A lost phone is recovery codes; a lost everything is the super administrator
+  with artisan access.
+- **Backups**: `php artisan app:backup` (see Console above). It tries mysqldump's
+  consistent snapshot first and falls back past the RELOAD-privilege demand of
+  mysqldump 8.0.32+, because a shared host's user rarely has that privilege.

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Filament\Resources\AttendanceSettings\Schemas;
 
+use App\Enums\Weekday;
 use App\Models\AttendanceSetting;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\TimePicker;
 use Filament\Schemas\Components\Callout;
@@ -51,6 +53,10 @@ final class AttendanceSettingForm
         $graceBounds = config('attendance.late_grace_bounds');
         $minGrace = (int) $graceBounds['min'];
         $maxGrace = (int) $graceBounds['max'];
+
+        $leaveBounds = config('attendance.annual_leave_bounds');
+        $minLeave = (int) $leaveBounds['min'];
+        $maxLeave = (int) $leaveBounds['max'];
 
         return $schema
             ->components([
@@ -169,6 +175,24 @@ final class AttendanceSettingForm
                                 'max' => self::graceMessage($minGrace, $maxGrace),
                             ])
                             ->columnSpanFull(),
+
+                        // The weekend lives beside the hours because the
+                        // two answer the same question at different grains:
+                        // which hours a working day has, and which days are
+                        // not working days at all. At most six may be
+                        // ticked - a company with no working day is a
+                        // setting no screen could mean - and none is a real
+                        // choice for a seven-day operation.
+                        CheckboxList::make('weekend_days')
+                            ->label(__('settings.fields.weekend_days'))
+                            ->helperText(__('settings.helpers.weekend_days'))
+                            ->options(Weekday::options())
+                            ->columns(2)
+                            ->maxItems(6)
+                            ->validationMessages([
+                                'max' => __('settings.validation.weekend_days_max'),
+                            ])
+                            ->columnSpanFull(),
                     ])
                     ->columns(2),
 
@@ -197,8 +221,38 @@ final class AttendanceSettingForm
                     // that holds at most two digits should not be as wide
                     // as the sentence explaining it.
                     ->columns(2),
+                Section::make(__('settings.sections.annual_leave'))
+                    ->icon(Heroicon::OutlinedCalendarDays)
+                    ->description(__('settings.helpers.annual_leave_days'))
+                    ->aside()
+                    ->schema([
+                        TextInput::make('annual_leave_days')
+                            ->label(__('settings.fields.annual_leave_days'))
+                            ->numeric()
+                            ->integer()
+                            ->required()
+                            ->minValue($minLeave)
+                            ->maxValue($maxLeave)
+                            ->default((int) config('attendance.default_annual_leave_days'))
+                            ->suffix(__('settings.fields.annual_leave_suffix'))
+                            ->validationMessages([
+                                'required' => self::annualLeaveMessage($minLeave, $maxLeave),
+                                'numeric' => self::annualLeaveMessage($minLeave, $maxLeave),
+                                'integer' => self::annualLeaveMessage($minLeave, $maxLeave),
+                                'min' => self::annualLeaveMessage($minLeave, $maxLeave),
+                                'max' => self::annualLeaveMessage($minLeave, $maxLeave),
+                            ]),
+                    ])
+                    // Half width, like every box on this screen that holds
+                    // at most three digits.
+                    ->columns(2),
             ])
             ->columns(1);
+    }
+
+    private static function annualLeaveMessage(int $min, int $max): string
+    {
+        return __('settings.validation.annual_leave', ['min' => $min, 'max' => $max]);
     }
 
     private static function radiusMessage(int $min, int $max): string

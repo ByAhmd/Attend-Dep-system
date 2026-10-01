@@ -7,6 +7,7 @@ namespace Tests\Feature\Performance;
 use App\Data\Attendance\CorrectionDraft;
 use App\Enums\CorrectionReason;
 use App\Filament\Notifications\RequestNotices;
+use App\Filament\Widgets\AbsenteesWidget;
 use App\Filament\Widgets\AttendanceStatsWidget;
 use App\Filament\Widgets\LateArrivalsWidget;
 use App\Filament\Widgets\RequestsQueueWidget;
@@ -175,7 +176,7 @@ final class NotificationCostTest extends TestCase
         // Asserted on the attribute the browser actually receives, because
         // that is the thing that costs a request; the property behind it is
         // protected and could be satisfied without the markup changing.
-        foreach ([RequestsQueueWidget::class, AttendanceStatsWidget::class, LateArrivalsWidget::class] as $widget) {
+        foreach ([RequestsQueueWidget::class, AttendanceStatsWidget::class, AbsenteesWidget::class, LateArrivalsWidget::class] as $widget) {
             Livewire::test($widget)->assertDontSee('wire:poll', escape: false);
         }
     }

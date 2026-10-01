@@ -14,6 +14,7 @@ return [
         'radius' => 'Allowed radius',
         'working_hours' => 'Official working hours',
         'corrections' => 'Correction requests',
+        'annual_leave' => 'Annual leave',
     ],
 
     'fields' => [
@@ -26,6 +27,9 @@ return [
         'work_ends_at' => 'Working day ends',
         'late_grace_minutes' => 'Late grace period',
         'late_grace_suffix' => 'minutes',
+        'weekend_days' => 'Weekend days',
+        'annual_leave_days' => 'Annual leave allowance',
+        'annual_leave_suffix' => 'working days',
     ],
 
     /*
@@ -46,6 +50,8 @@ return [
         'correction_requests_per_month' => 'The most requests one employee may send in a Gregorian month. A request counts whether it is approved or rejected. Zero switches correction requests off entirely.',
         'working_hours' => 'A check-in more than the grace period after the start is marked late, and a check-out before the end asks the employee to choose a reason.',
         'late_grace_minutes' => 'Minutes after the start of the working day during which an arrival is not yet marked late. Zero means any arrival after the start is late.',
+        'weekend_days' => 'On these days nobody is expected: the absence list stays silent and the monthly report does not count them. Check-in still works on them.',
+        'annual_leave_days' => 'Working days of annual leave per Gregorian year, for every employee without an allowance of their own on their account. The balance informs whoever decides a request; it never refuses one.',
     ],
 
     'validation' => [
@@ -59,6 +65,8 @@ return [
         'work_time' => 'Give a valid time.',
         'working_day_ordered' => 'The working day must end after it starts.',
         'late_grace' => 'The grace period must be a whole number between :min and :max minutes.',
+        'weekend_days_max' => 'At most six days can be the weekend — at least one working day must remain.',
+        'annual_leave' => 'The allowance must be a whole number of days between :min and :max.',
     ],
 
     'notifications' => [

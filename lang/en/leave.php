@@ -55,6 +55,21 @@ return [
 
     'units' => [
         'days' => '{1} :count day|[2,*] :count days',
+        'working_days' => '{0} no working days|{1} :count working day|[2,*] :count working days',
+    ],
+
+    /*
+     | The annual balance, printed where a request is written and where one
+     | is decided. It informs; it never refuses - the sentence that says so
+     | is part of the vocabulary on purpose.
+     */
+    'balance' => [
+        'remaining' => 'Annual leave remaining',
+        'cost' => 'This request',
+        'after' => 'If approved',
+        'entitlement_used' => 'Entitlement :entitlement, used this year :used — approved annual leave, in working days.',
+        'informational' => 'The balance informs the decision; it never refuses a request by itself.',
+        'exceeded' => 'Exceeded by :days',
     ],
 
     'summaries' => [

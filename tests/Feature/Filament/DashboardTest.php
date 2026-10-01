@@ -12,6 +12,7 @@ use App\Filament\Resources\Attendances\AttendanceResource;
 use App\Filament\Resources\AttendanceSettings\AttendanceSettingResource;
 use App\Filament\Resources\Employees\EmployeeResource;
 use App\Filament\Resources\LeaveRequests\LeaveRequestResource;
+use App\Filament\Widgets\AbsenteesWidget;
 use App\Filament\Widgets\AttendanceStatsWidget;
 use App\Filament\Widgets\LateArrivalsWidget;
 use App\Filament\Widgets\RequestsQueueWidget;
@@ -242,9 +243,10 @@ final class DashboardTest extends TestCase
     public function the_queue_widget_is_on_the_dashboard_above_the_days_figures(): void
     {
         // The queues ask for an answer, the figures describe the day, and
-        // the late list reports a morning already over - in that order.
+        // the two morning reports close - the missing before the late,
+        // because somebody absent outranks somebody who arrived at 09:45.
         $this->assertSame(
-            [RequestsQueueWidget::class, AttendanceStatsWidget::class, LateArrivalsWidget::class],
+            [RequestsQueueWidget::class, AttendanceStatsWidget::class, AbsenteesWidget::class, LateArrivalsWidget::class],
             (new Dashboard)->getWidgets(),
         );
 
@@ -252,6 +254,41 @@ final class DashboardTest extends TestCase
             ->assertOk()
             ->assertSee(__('dashboard.stats.pending_corrections'))
             ->assertSee(__('dashboard.stats.pending_leave'));
+    }
+
+    #[Test]
+    public function the_absentees_widget_lists_who_has_not_checked_in(): void
+    {
+        $this->freezeRiyadhClock('2026-09-02 11:00:00');
+
+        $sara = $this->makeEmployee('sara@company.test');
+        $omar = $this->makeEmployee('omar@company.test');
+
+        $this->checkedIn($omar);
+
+        Livewire::test(AbsenteesWidget::class)
+            ->assertOk()
+            ->assertSee(__('dashboard.absent.heading'))
+            ->assertSee($sara->name)
+            ->assertDontSee($omar->name);
+    }
+
+    #[Test]
+    public function on_a_weekend_the_absent_list_names_the_day_instead_of_accusing_anybody(): void
+    {
+        // 2026-09-04 is a Friday: nobody is expected, so the empty state
+        // says which day it is rather than that everyone has arrived.
+        $this->freezeRiyadhClock('2026-09-04 11:00:00');
+        $this->makeEmployee('sara@company.test');
+
+        $dayName = app(AttendanceCalendar::class)->today()
+            ->locale(app()->getLocale())
+            ->isoFormat('dddd');
+
+        Livewire::test(AbsenteesWidget::class)
+            ->assertOk()
+            ->assertSee(__('dashboard.absent.non_working_heading', ['day' => $dayName]))
+            ->assertDontSee('sara@company.test');
     }
 
     #[Test]

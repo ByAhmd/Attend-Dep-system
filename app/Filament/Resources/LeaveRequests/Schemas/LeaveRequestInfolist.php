@@ -7,6 +7,7 @@ namespace App\Filament\Resources\LeaveRequests\Schemas;
 use App\Enums\LeaveType;
 use App\Enums\RequestStatus;
 use App\Models\LeaveRequest;
+use App\Services\Leave\LeaveBalance;
 use App\Services\Leave\LeaveConflicts;
 use Filament\Infolists\Components\IconEntry;
 use Filament\Infolists\Components\TextEntry;
@@ -47,6 +48,31 @@ final class LeaveRequestInfolist
      * @var array<string, string>
      */
     private const LTR_FIGURE = ['dir' => 'ltr'];
+
+    /**
+     * Whether this request draws on the annual balance: annual leave, a
+     * real day off rather than an exit and return, and still undecided -
+     * once decided it is inside the balance and showing the purse beside
+     * it would count it twice.
+     */
+    private static function drawsOnBalance(LeaveRequest $record): bool
+    {
+        return $record->type === LeaveType::Annual
+            && ! $record->is_exit_and_return
+            && $record->status === RequestStatus::Pending;
+    }
+
+    /**
+     * The balance as a sentence: remaining working days, or by how much
+     * the year's allowance is exceeded - the same two shapes the
+     * employee's own form prints.
+     */
+    private static function balanceSentence(int $remaining): string
+    {
+        return $remaining >= 0
+            ? trans_choice('leave.units.working_days', $remaining)
+            : __('leave.balance.exceeded', ['days' => trans_choice('leave.units.working_days', abs($remaining))]);
+    }
 
     public static function configure(Schema $schema): Schema
     {
@@ -99,6 +125,42 @@ final class LeaveRequestInfolist
                     ->label(__('leave.fields.is_exit_and_return'))
                     ->boolean()
                     ->falseColor('gray'),
+
+                // The purse beside the price, shown only while an annual
+                // request is still waiting for its decision: afterwards the
+                // request is inside the balance and these lines would count
+                // it twice. Working days, because that is the unit the
+                // balance is kept in - a Friday inside the range costs
+                // nothing. All three inform; none of them refuses, and the
+                // last one says so.
+                TextEntry::make('balance_remaining')
+                    ->label(__('leave.balance.remaining'))
+                    ->state(fn (LeaveRequest $record): string => self::balanceSentence(
+                        app(LeaveBalance::class)->remainingFor($record->user),
+                    ))
+                    ->helperText(fn (LeaveRequest $record): string => __('leave.balance.entitlement_used', [
+                        'entitlement' => app(LeaveBalance::class)->entitlementFor($record->user),
+                        'used' => app(LeaveBalance::class)->usedThisYear($record->user),
+                    ]))
+                    ->hidden(fn (LeaveRequest $record): bool => ! self::drawsOnBalance($record)),
+
+                TextEntry::make('balance_cost')
+                    ->label(__('leave.balance.cost'))
+                    ->state(fn (LeaveRequest $record): string => trans_choice(
+                        'leave.units.working_days',
+                        app(LeaveBalance::class)->costOf($record),
+                    ))
+                    ->hidden(fn (LeaveRequest $record): bool => ! self::drawsOnBalance($record)),
+
+                TextEntry::make('balance_after')
+                    ->label(__('leave.balance.after'))
+                    ->state(fn (LeaveRequest $record): string => self::balanceSentence(
+                        app(LeaveBalance::class)->remainingFor($record->user) - app(LeaveBalance::class)->costOf($record),
+                    ))
+                    ->color(fn (LeaveRequest $record): ?string => app(LeaveBalance::class)->remainingFor($record->user)
+                        - app(LeaveBalance::class)->costOf($record) < 0 ? 'warning' : null)
+                    ->helperText(__('leave.balance.informational'))
+                    ->hidden(fn (LeaveRequest $record): bool => ! self::drawsOnBalance($record)),
 
                 TextEntry::make('submitted_at')
                     ->label(__('leave.fields.submitted_at'))

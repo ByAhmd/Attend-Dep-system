@@ -9,7 +9,9 @@ use App\Exceptions\Attendance\AttendanceRejectedException;
 use App\Filament\Resources\AttendanceSettings\AttendanceSettingResource;
 use App\Filament\Resources\AttendanceSettings\Pages\EditAttendanceSetting;
 use App\Models\AttendanceSetting;
+use App\Services\Attendance\AttendanceCalendar;
 use App\Services\Attendance\AttendanceWorkflow;
+use App\Services\Attendance\WorkingCalendar;
 use Database\Factories\AttendanceFactory;
 use Filament\Facades\Filament;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -346,6 +348,77 @@ final class AttendanceSettingsTest extends TestCase
             (int) config('attendance.default_late_grace_minutes'),
             AttendanceSetting::current()->late_grace_minutes,
         );
+    }
+
+    #[Test]
+    public function the_weekend_and_the_annual_allowance_are_on_the_form_with_their_defaults(): void
+    {
+        Livewire::test(EditAttendanceSetting::class)
+            ->assertSchemaStateSet([
+                'weekend_days' => ['friday', 'saturday'],
+                'annual_leave_days' => (int) config('attendance.default_annual_leave_days'),
+            ])
+            ->assertSee(__('settings.sections.annual_leave'))
+            ->assertSee(__('settings.helpers.weekend_days'));
+    }
+
+    #[Test]
+    public function the_weekend_can_be_changed_and_the_calendar_reads_the_change(): void
+    {
+        // 2026-09-06 is a Sunday: a working day under the default weekend,
+        // and the weekend itself once the owner says so.
+        $this->configureCompanyLocation();
+        $this->freezeRiyadhClock('2026-09-06 10:00:00');
+        $today = app(AttendanceCalendar::class)->today();
+
+        $this->assertTrue(app(WorkingCalendar::class)->isWorkingDay($today));
+
+        Livewire::test(EditAttendanceSetting::class)
+            ->fillForm(['weekend_days' => ['sunday']])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame(['sunday'], AttendanceSetting::current()->weekend_days);
+        $this->assertFalse(app(WorkingCalendar::class)->isWorkingDay($today));
+    }
+
+    #[Test]
+    public function a_weekend_of_all_seven_days_is_refused(): void
+    {
+        $this->configureCompanyLocation();
+
+        Livewire::test(EditAttendanceSetting::class)
+            ->fillForm([
+                'weekend_days' => ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'],
+            ])
+            ->call('save')
+            ->assertHasFormErrors(['weekend_days' => 'max'])
+            ->assertSee(__('settings.validation.weekend_days_max'));
+
+        $this->assertSame(['friday', 'saturday'], AttendanceSetting::current()->weekend_days);
+    }
+
+    #[Test]
+    public function the_annual_allowance_can_be_changed_within_its_bounds(): void
+    {
+        $this->configureCompanyLocation();
+
+        Livewire::test(EditAttendanceSetting::class)
+            ->fillForm(['annual_leave_days' => 30])
+            ->call('save')
+            ->assertHasNoFormErrors();
+
+        $this->assertSame(30, AttendanceSetting::current()->annual_leave_days);
+
+        $bounds = config('attendance.annual_leave_bounds');
+
+        Livewire::test(EditAttendanceSetting::class)
+            ->fillForm(['annual_leave_days' => $bounds['max'] + 1])
+            ->call('save')
+            ->assertHasFormErrors(['annual_leave_days' => 'max'])
+            ->assertSee(__('settings.validation.annual_leave', ['min' => $bounds['min'], 'max' => $bounds['max']]));
+
+        $this->assertSame(30, AttendanceSetting::current()->annual_leave_days);
     }
 
     #[Test]
