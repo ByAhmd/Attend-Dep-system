@@ -24,3 +24,11 @@ parameters:
     # attributes therefore carry @property annotations on the model, since
     # the schema only knows they are strings.
     checkModelProperties: true
+
+    # By default PHPStan remembers the result of a possibly-impure call and
+    # assumes a second identical call returns the same value. In a test
+    # suite that is exactly backwards: asserting on a query helper, mutating
+    # state, then asserting on the same helper again is the shape of half
+    # the tests here, and the default flags the second assertion as already
+    # proven. Off, so a repeated call is re-inferred rather than remembered.
+    rememberPossiblyImpureFunctionValues: false

@@ -331,7 +331,9 @@ final class NotificationFailureTest extends TestCase
 
         // Nothing cascades: the row is not the account's to lose, and a
         // deleted account has no bell to open in any case.
-        $this->assertSame(1, $this->bellCount($this->employee));
+        $bellAfterDelete = $this->bellCount($this->employee);
+
+        $this->assertSame(1, $bellAfterDelete);
 
         $this->employee->restore();
 

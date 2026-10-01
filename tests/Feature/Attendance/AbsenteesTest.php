@@ -104,13 +104,19 @@ final class AbsenteesTest extends TestCase
     }
 
     #[Test]
-    public function nobody_is_listed_on_a_weekend_or_a_holiday(): void
+    public function nobody_is_listed_on_a_weekend(): void
     {
         $this->makeEmployee('sara@company.test');
 
         $this->freezeRiyadhClock('2026-09-04 10:00:00');
 
         $this->assertSame([], $this->listedUserIds());
+    }
+
+    #[Test]
+    public function nobody_is_listed_on_a_holiday(): void
+    {
+        $this->makeEmployee('sara@company.test');
 
         $this->freezeRiyadhClock('2026-09-06 10:00:00');
         $this->makeHoliday(CarbonImmutable::parse('2026-09-06', 'Asia/Riyadh'));

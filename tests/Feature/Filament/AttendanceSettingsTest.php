@@ -399,7 +399,7 @@ final class AttendanceSettingsTest extends TestCase
     }
 
     #[Test]
-    public function the_annual_allowance_can_be_changed_within_its_bounds(): void
+    public function the_annual_allowance_can_be_changed_from_the_panel(): void
     {
         $this->configureCompanyLocation();
 
@@ -409,6 +409,12 @@ final class AttendanceSettingsTest extends TestCase
             ->assertHasNoFormErrors();
 
         $this->assertSame(30, AttendanceSetting::current()->annual_leave_days);
+    }
+
+    #[Test]
+    public function an_allowance_outside_the_bounds_is_refused_and_writes_nothing(): void
+    {
+        $this->configureCompanyLocation();
 
         $bounds = config('attendance.annual_leave_bounds');
 
@@ -418,7 +424,10 @@ final class AttendanceSettingsTest extends TestCase
             ->assertHasFormErrors(['annual_leave_days' => 'max'])
             ->assertSee(__('settings.validation.annual_leave', ['min' => $bounds['min'], 'max' => $bounds['max']]));
 
-        $this->assertSame(30, AttendanceSetting::current()->annual_leave_days);
+        $this->assertSame(
+            (int) config('attendance.default_annual_leave_days'),
+            AttendanceSetting::current()->annual_leave_days,
+        );
     }
 
     #[Test]
