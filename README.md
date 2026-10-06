@@ -73,11 +73,10 @@ when SMTP is configured and always available for the administrator to copy and s
 hand. The account becomes *Active* the moment its owner follows the link and chooses a
 password.
 
-**Presence pings.** While a session is open, the attendance page reports the employee's
-position every few minutes and the server records it with the distance it computed. This
-is supporting evidence only. A browser cannot report a position while the page is closed
-or the phone is asleep, so a gap between pings does not mean the employee was absent, and
-nothing in the interface claims otherwise. Tell your staff that this is recorded.
+**Where location is recorded.** At two moments only: a check-in and a check-out that
+succeeded, which by definition stood at the company. Nothing reports the phone's position
+between them, and no screen implies a position the server never saw. That is a promise to
+the people being measured, not a gap.
 
 ---
 
